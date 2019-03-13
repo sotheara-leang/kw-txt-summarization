@@ -1,0 +1,2 @@
+PyYAML==5.1
+singleton-decorator==1.0.0
