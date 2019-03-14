@@ -1,2 +1,5 @@
 emb-size: 10
 hidden-size: 10
+
+intra-encoder: true
+intra-decoder: true
