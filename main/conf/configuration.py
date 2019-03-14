@@ -1,11 +1,10 @@
 import yaml
 import os
-import logging
-
-import main.common.logging
 
 from yaml import Loader
 from singleton_decorator import singleton
+
+from main.common.common import *
 
 
 @singleton
