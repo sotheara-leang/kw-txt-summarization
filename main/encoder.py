@@ -13,8 +13,14 @@ class Encoder(nn.Module):
                             bidirectional=True)
 
     '''
-        x: B, L, H
-        seq_len: B, L 
+        :param
+            x       : B, L, H
+            seq_len : B, L 
+            
+        :return
+            outputs     : B, L, 2H
+            hidden_n    : B, 2H
+            cell_n      : B, 2H
     '''
     def forward(self, x, seq_len):
         packed_x = nn.pack_padded_sequence(x, seq_len, batch_first=True)
