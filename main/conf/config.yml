@@ -3,3 +3,5 @@ hidden-size: 2
 
 intra-encoder: true
 intra-decoder: true
+
+vocab-size: 100
