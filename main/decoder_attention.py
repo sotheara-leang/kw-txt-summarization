@@ -13,14 +13,20 @@ class DecoderAttention(nn.Module):
         self.attn = nn.Bilinear(2 * conf.get('hidden-size'), 2 * conf.get('hidden-size'), 1, False)
 
     '''
-        dec_hidden  : 1, H
-        pre_dec_hidden  : B, H
+        :param
+            dec_hidden      : B, 2H
+            pre_dec_hidden  : B, L, 2H
+            
+        :return
+            context_vector  : B, 2*H
     '''
     def forward(self, dec_hidden, pre_dec_hidden):
         if pre_dec_hidden is None:
             context_vector = t.zeros(dec_hidden.size())
         else:
-            score = self.attn(dec_hidden.t(), pre_dec_hidden)   # B, 1
+            dec_hidden = dec_hidden.unsqueeze(1).repeat(1, pre_dec_hidden.size(1), 1)   # B, L, 2H
+
+            score = self.attn(dec_hidden, pre_dec_hidden).squeeze(2)   # B, L
 
             # softmax
 
@@ -28,7 +34,7 @@ class DecoderAttention(nn.Module):
 
             # context vector
 
-            context_vector = t.bmm(attention.unsqueeze(1), pre_dec_hidden)  # B, 1, L * B, L, H  ->  B, 1, 2*H
+            context_vector = t.bmm(attention.unsqueeze(1), pre_dec_hidden)  # B, 1, L * B, L, 2H  ->  B, 1, 2*H
             context_vector = context_vector.squeeze(1)  # B, 2*H
 
         return context_vector

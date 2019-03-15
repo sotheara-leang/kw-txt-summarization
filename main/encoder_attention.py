@@ -13,9 +13,14 @@ class EncoderAttention(nn.Module):
         self.attn = nn.Bilinear(2 * conf.get('hidden-size'), 2 * conf.get('hidden-size'), 1, False)
 
     '''
-        dec_hidden  : B, 2H
-        enc_hidden  : B, L, 2H
-        sum_score   : B, L
+        :param
+            dec_hidden  : B, 2H
+            enc_hidden  : B, L, 2H
+            sum_score   : B, L
+        
+        :return
+            context_vector  : B, 2*H
+            sum_score       : B, L
     '''
     def forward(self, dec_hidden, enc_hidden, sum_score):
         dec_hidden = dec_hidden.unsqueeze(1).repeat(1, enc_hidden.size(1), 1)   # B, L, 2H
