@@ -10,19 +10,21 @@ class EncoderAttention(nn.Module):
     def __init__(self):
         super(EncoderAttention, self).__init__()
 
-        self.attn = nn.Bilinear(2 * conf.get('hidden-size'), conf.get('hidden-size'), 1, False)
+        self.attn = nn.Bilinear(2 * conf.get('hidden-size'), 2 * conf.get('hidden-size'), 1, False)
 
     '''
         dec_hidden  : B, 2H
         enc_hidden  : B, L, 2H
-        sum_score   : B, 1
+        sum_score   : B, L
     '''
     def forward(self, dec_hidden, enc_hidden, sum_score):
-        score = self.attn(dec_hidden.unsqueeze(1), enc_hidden)   # B, L, 1
+        dec_hidden = dec_hidden.unsqueeze(1).repeat(1, enc_hidden.size(1), 1)   # B, L, 2H
+
+        score = self.attn(dec_hidden, enc_hidden).squeeze(2)   # B, L
 
         # normalized score
 
-        exp_score = t.exp(score)    # B, L, 1
+        exp_score = t.exp(score)    # B, L
         if sum_score is None:
             score = exp_score
             sum_score = exp_score
@@ -32,7 +34,7 @@ class EncoderAttention(nn.Module):
 
         # softmax
 
-        attention = f.softmax(score, dim=1)     # B, 1
+        attention = f.softmax(score, dim=1)     # B, L
 
         # context vector
 

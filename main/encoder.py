@@ -16,7 +16,7 @@ class Encoder(nn.Module):
     '''
         :param
             x       : B, L, H
-            seq_len : B, L 
+            seq_len : L
             
         :return
             outputs     : B, L, 2H

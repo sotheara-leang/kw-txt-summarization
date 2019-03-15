@@ -1,5 +1,5 @@
-emb-size: 10
-hidden-size: 10
+emb-size: 2
+hidden-size: 2
 
 intra-encoder: true
 intra-decoder: true
