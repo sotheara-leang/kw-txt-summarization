@@ -1,5 +1,6 @@
 import torch as t
 import torch.nn as nn
+import torch.nn.utils.rnn as rnn
 
 from main.common.common import *
 
@@ -23,14 +24,14 @@ class Encoder(nn.Module):
             cell_n      : B, 2H
     '''
     def forward(self, x, seq_len):
-        packed_x = nn.pack_padded_sequence(x, seq_len, batch_first=True)
+        packed_x = rnn.pack_padded_sequence(x, seq_len, batch_first=True)
 
         # output    : B, L, 2H
         # hidden_n  : 2, B, H
         # cell_n    : 2, B, H
-        outputs, hidden_n, cell_n = self.lstm(packed_x)
+        outputs, (hidden_n, cell_n) = self.lstm(packed_x)
 
-        outputs, _ = nn.pad_packed_sequence(outputs, batch_first=True).contiguous()
+        outputs, _ = rnn.pad_packed_sequence(outputs, batch_first=True)
 
         # B, 2H
         hidden_n = t.cat(list(hidden_n), dim=1)
