@@ -30,7 +30,7 @@ class Decoder(nn.Module):
     '''
         :param
             x               : B, 2H
-            pre_hidden  : B, 2H
+            pre_hidden      : B, 2H
             enc_hidden      : B, L, 2H
             ctx_vector      : B, 2H
             

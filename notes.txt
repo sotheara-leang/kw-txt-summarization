@@ -1,0 +1,1 @@
+ echo "I won't be." | java -classpath "./stanford-corenlp-3.9.2.jar" edu.stanford.nlp.process.PTBTokenizer
