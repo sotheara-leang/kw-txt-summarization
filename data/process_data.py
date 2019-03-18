@@ -1,6 +1,7 @@
 import os
 import argparse
-
+import collections
+import re
 
 def count_samples(file_name):
     counter = 0
@@ -66,6 +67,41 @@ def chunk_samples(file_name, chunk_size):
             counter += 1
 
 
+def generate_vocab(article_file, summary_file, vocab_file=None):
+    if not os.path.exists('extract'):
+        os.makedirs('extract')
+
+    with open(article_file, 'r') as art_reader, open(summary_file, 'r') as summary_reader:
+        vocab_counter = collections.Counter()
+
+        # build vocab
+        for article in art_reader:
+            summary = next(summary_reader)
+
+            art_tokens = article.split(' ')
+            sum_tokens = summary.split(' ')
+
+            tokens = art_tokens + sum_tokens
+            tokens = [t.strip() for t in tokens]  # strip
+            tokens = [t for t in tokens if t != ""]  # remove empty
+
+            vocab_counter.update(tokens)
+
+        # write vocab
+        if vocab_file is None:
+            vocab_file = 'extract/vocab.txt'
+
+        with open(vocab_file, 'w') as writer:
+            num_rex = re.compile('#+.?#*')
+
+            for word in vocab_counter:
+                if num_rex.match(word) is not None:
+                    continue
+
+                count = vocab_counter[word]
+                writer.write(word + ' ' + str(count) + '\n')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
@@ -75,12 +111,17 @@ if __name__ == '__main__':
     parser.add_argument('--eindex', type=int, default="1000")
     parser.add_argument('--chunk_size', type=int, default="20000")
 
+    # generate vocab
+    parser.add_argument('--art_file', type=str)
+    parser.add_argument('--sum_file', type=str)
+    parser.add_argument('--vocab_file', type=str)
+
     args = parser.parse_args()
 
-    file = args.file
-
     if args.opt == 'chunk':
-        chunk_samples(file, args.chunk_size)
+        chunk_samples(args.file, args.chunk_size)
+    elif args.opt == 'gen-vocab':
+        generate_vocab(args.art_file, args.sum_file, args.vocab_file)
     else:
-        extract_samples(file, args.sindex, args.eindex)
+        extract_samples(args.file)
 

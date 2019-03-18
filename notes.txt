@@ -1,1 +1,9 @@
+Implementation Text-Summarizer-Pytorch from follows https://github.com/rohithreddy024/Text-Summarizer-Pytorch
+
+1. Dataset
+
+https://github.com/harvardnlp/sent-summary
+
+++ Other
+
  echo "I won't be." | java -classpath "./stanford-corenlp-3.9.2.jar" edu.stanford.nlp.process.PTBTokenizer
