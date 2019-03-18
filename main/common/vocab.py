@@ -28,7 +28,7 @@ class Vocab(object):
             self._count += 1
 
         # Read the vocab file
-        with open(FileUtil.get_file_path('data/' + vocab_file), 'r') as vocab_f:
+        with open(FileUtil.get_file_path(vocab_file), 'r') as vocab_f:
             for line in vocab_f:
                 pieces = line.split()
 

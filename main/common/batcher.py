@@ -9,6 +9,7 @@ from threading import Thread
 from main.common.common import *
 from main.common.sample import Sample
 from main.common.batch import Batch
+from main.common.util.file_util import FileUtil
 
 
 class Batcher(object):
@@ -60,7 +61,7 @@ class Batcher(object):
     def next_batch(self):
         # If the batch queue is empty, print a warning
         if self._batch_queue.qsize() == 0:
-            logging.warning('Bucket input queue is empty when calling next_batch. Bucket queue size: %i, Input queue size: %i', self._batch_queue.qsize(), self._example_queue.qsize())
+            logging.warning('Bucket input queue is empty when calling next_batch. Bucket queue size: %i, Input queue size: %i', self._batch_queue.qsize(), self._sample_queue.qsize())
             if self._single_pass and self._finished_reading:
                 logging.info("Finished reading dataset in single_pass mode.")
                 return None
@@ -73,7 +74,9 @@ class Batcher(object):
 
         while True:
             try:
-                (article, summary) = next(sample_generator)
+                sample = next(sample_generator)
+
+                print(sample.article)
 
             except StopIteration:  # if there are no more examples:
                 logging.info("The sample generator for this sample queue filling thread has exhausted data.")
@@ -85,7 +88,7 @@ class Batcher(object):
                 else:
                     raise Exception("single_pass mode is off but the sample generator is out of data; error.")
 
-            sample = Sample(article, summary, self._vocab)
+            sample = Sample(sample.article, sample.summary, self._vocab)
 
             self._sample_queue.put(sample)  # place the Example in the sample queue.
 
@@ -139,7 +142,7 @@ class Batcher(object):
 
     def sample_generator(self, article_path, summary_path, single_pass):
         while True:
-            with open(article_path, 'r') as art_reader, open(summary_path, 'r') as sum_reader:
+            with open(FileUtil.get_file_path(article_path), 'r') as art_reader, open(FileUtil.get_file_path(summary_path), 'r') as sum_reader:
                 while True:
                     article = next(art_reader)
                     summary = next(sum_reader)

@@ -16,11 +16,16 @@ class Training(object):
 
         conf.set('vocab-size', self.vocab.size())
 
-    def run(self):
+    def train_one_batch(self, batch):
         pass
+
+    def run(self):
+
+        while True:
+            batch = self.batcher.next_batch()
+
 
 
 if __name__ == "__main__":
     training = Training()
     training.run()
-

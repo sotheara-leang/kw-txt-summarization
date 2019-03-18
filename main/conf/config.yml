@@ -6,6 +6,6 @@ max-dec-steps: 100
 
 training:
   batch-size: 100
-  article-file: train/article.txt
-  summary-file: train/summary.txt
-  vocab-file: train/vocab.txt
+  article-file: data/train/article.txt
+  summary-file: data/train/summary.txt
+  vocab-file: data/train/vocab.txt
