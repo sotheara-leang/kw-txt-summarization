@@ -1,5 +1,5 @@
 from unittest import TestCase
-from main.util.file_util import FileUtil
+from main.common.util.file_util import FileUtil
 
 
 class TestFileUtil(TestCase):
