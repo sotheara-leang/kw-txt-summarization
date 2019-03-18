@@ -9,7 +9,7 @@ from main.decoder_attention import DecoderAttention
 
 class Decoder(nn.Module):
 
-    def __init__(self):
+    def __init__(self, vocab_size):
         super(Decoder, self).__init__()
 
         self.enc_attr = EncoderAttention()
@@ -17,7 +17,6 @@ class Decoder(nn.Module):
 
         emb_size = conf.get('emb-size')
         hidden_size = conf.get('hidden-size')
-        vocab_size = conf.get('vocab-size')
 
         self.x_concat = nn.Linear(2 * hidden_size + emb_size, emb_size)
 
@@ -37,8 +36,7 @@ class Decoder(nn.Module):
         :return
            
     '''
-
-    def forward(self, x, pre_hidden, enc_hidden, ctx_vector, sum_temporal_score):
+    def forward(self, x, pre_hidden, enc_hidden, ctx_vector, sum_temporal_score, extra_zeros, enc_batch_extend_vocab):
         x = self.x_concat(t.cat([x, ctx_vector], dim=1))    # B, E + 2H
 
         # new decoder state
@@ -48,7 +46,7 @@ class Decoder(nn.Module):
 
         # enc_ctx_vector        : B, 2 * H
         # sum_temporal_score    : B, L
-        enc_ctx_vector, enc_attr, sum_temporal_score = self.enc_attr(hidden, enc_hidden, sum_temporal_score)
+        enc_ctx_vector, enc_att, sum_temporal_score = self.enc_attr(hidden, enc_hidden, sum_temporal_score)
 
         # intra-decoder attention
 
@@ -65,8 +63,13 @@ class Decoder(nn.Module):
         #
         vocab_dist = (1 - p_gen) * vocab_dist
 
-        p_dist = p_gen * enc_attr
+        p_dist = p_gen * enc_att
+
+        # pointer mechanism
+        if extra_zeros is not None:
+            vocab_dist = t.cat([vocab_dist, extra_zeros], dim=1)
 
         # final distribution
+        final_dist = vocab_dist.scatter_add(1, enc_batch_extend_vocab, p_dist)
 
-        return hidden, sum_temporal_score
+        return final_dist, hidden, sum_temporal_score

@@ -15,7 +15,7 @@ class Batcher(object):
 
     BATCH_QUEUE_MAX = 1000  # max number of batches the batch_queue can hold
 
-    def __init__(self, article_path, summary_path, vocab, mode, batch_size, single_pass):
+    def __init__(self, article_path, summary_path, vocab, batch_size, mode='train', single_pass=True):
         self._article_path = article_path
         self._summary_path = summary_path
         self._vocab = vocab
@@ -25,7 +25,7 @@ class Batcher(object):
 
         # Initialize a queue of Batches waiting to be used, and a queue of Samples waiting to be batched
         self._batch_queue = Queue(self.BATCH_QUEUE_MAX)
-        self._sample_queue = Queue.Queue(self.BATCH_QUEUE_MAX * self.batch_size)
+        self._sample_queue = Queue(self.BATCH_QUEUE_MAX * self.batch_size)
 
         # Different settings depending on whether we're in single_pass mode or not
         if single_pass:
@@ -98,7 +98,7 @@ class Batcher(object):
 
                 self._batch_queue.put(Batch(b, self._vocab, self.batch_size))
             else:
-                # Get bucketing_cache_size-many batches of Examples into a list, then sort
+                # Get bucketing_cache_size-many batches of Samples into a list, then sort
                 inputs = []
                 for _ in range(self.batch_size * self._bucketing_cache_size):
                     inputs.append(self._sample_queue.get())

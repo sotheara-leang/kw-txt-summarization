@@ -3,6 +3,7 @@
 import csv
 
 from main.common.common import *
+from main.common.util.file_util import FileUtil
 
 SENTENCE_START  = '<s>'
 SENTENCE_END    = '</s>'
@@ -27,7 +28,7 @@ class Vocab(object):
             self._count += 1
 
         # Read the vocab file
-        with open(vocab_file, 'r') as vocab_f:
+        with open(FileUtil.get_file_path('data/' + vocab_file), 'r') as vocab_f:
             for line in vocab_f:
                 pieces = line.split()
 

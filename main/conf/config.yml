@@ -1,10 +1,11 @@
 emb-size: 2
 hidden-size: 2
 
-intra-encoder: true
-intra-decoder: true
-
-vocab-size: 100
-
 max-enc-steps: 1000
 max-dec-steps: 100
+
+training:
+  batch-size: 100
+  article-file: train/article.txt
+  summary-file: train/summary.txt
+  vocab-file: train/vocab.txt
