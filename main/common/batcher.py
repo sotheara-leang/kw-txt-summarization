@@ -1,6 +1,6 @@
 # Most codes are from https://github.com/rohithreddy024/Text-Summarizer-Pytorch/blob/master/data_util/batcher.py
 
-import queue as Queue
+from queue import Queue
 import time
 
 from random import shuffle
@@ -23,24 +23,24 @@ class Batcher(object):
         self.mode = mode
         self.batch_size = batch_size
 
-        # Initialize a queue of Batches waiting to be used, and a queue of Examples waiting to be batched
-        self._batch_queue = Queue.Queue(self.BATCH_QUEUE_MAX)
+        # Initialize a queue of Batches waiting to be used, and a queue of Samples waiting to be batched
+        self._batch_queue = Queue(self.BATCH_QUEUE_MAX)
         self._sample_queue = Queue.Queue(self.BATCH_QUEUE_MAX * self.batch_size)
 
         # Different settings depending on whether we're in single_pass mode or not
         if single_pass:
-            self._num_example_q_threads = 1     # just one thread, so we read through the dataset just once
+            self._num_sample_q_threads = 1      # just one thread, so we read through the dataset just once
             self._num_batch_q_threads = 1       # just one thread to batch sample
             self._bucketing_cache_size = 1      # only load one batch's worth of sample before bucketing; this essentially means no bucketing
             self._finished_reading = False      # this will tell us when we're finished reading the dataset
         else:
-            self._num_example_q_threads = 1     # 16 # num threads to fill sample queue
+            self._num_sample_q_threads = 1      # 16 # num threads to fill sample queue
             self._num_batch_q_threads = 1       # 4  # num threads to fill batch queue
             self._bucketing_cache_size = 1      # 100 # how many batches-worth of examples to load into cache before bucketing
 
         # Start the threads that load the queues
         self._sample_q_threads = []
-        for _ in range(self._num_example_q_threads):
+        for _ in range(self._num_sample_q_threads):
             self._sample_q_threads.append(Thread(target=self.fill_sample_queue))
             self._sample_q_threads[-1].daemon = True
             self._sample_q_threads[-1].start()
@@ -52,7 +52,7 @@ class Batcher(object):
             self._batch_q_threads[-1].start()
 
         # Start a thread that watches the other threads and restarts them if they're dead
-        if not single_pass:  # We don't want a watcher in single_pass mode because the threads shouldn't run forever
+        if not single_pass:  # We don't want a watcher in single_pass mode because the threads should not run forever
             self._watch_thread = Thread(target=self.watch_threads)
             self._watch_thread.daemon = True
             self._watch_thread.start()
@@ -60,7 +60,7 @@ class Batcher(object):
     def next_batch(self):
         # If the batch queue is empty, print a warning
         if self._batch_queue.qsize() == 0:
-            # logging.warning('Bucket input queue is empty when calling next_batch. Bucket queue size: %i, Input queue size: %i', self._batch_queue.qsize(), self._example_queue.qsize())
+            logging.warning('Bucket input queue is empty when calling next_batch. Bucket queue size: %i, Input queue size: %i', self._batch_queue.qsize(), self._example_queue.qsize())
             if self._single_pass and self._finished_reading:
                 logging.info("Finished reading dataset in single_pass mode.")
                 return None
@@ -69,28 +69,30 @@ class Batcher(object):
         return batch
 
     def fill_sample_queue(self):
-        sample_gen = self.sample_generator(self._article_path, self._summary_path, self._single_pass)
+        sample_generator = self.sample_generator(self._article_path, self._summary_path, self._single_pass)
 
         while True:
             try:
-                (article, summary) = next(sample_gen)  # read the next example from file. article and summary are both strings.
+                (article, summary) = next(sample_generator)
+
             except StopIteration:  # if there are no more examples:
-                logging.info("The example generator for this example queue filling thread has exhausted data.")
+                logging.info("The sample generator for this sample queue filling thread has exhausted data.")
+
                 if self._single_pass:
-                    logging.info("single_pass mode is on, so we've finished reading dataset. This thread is stopping.")
+                    logging.info("single_pass mode is on, so we've finished reading datafile. This thread is stopping.")
                     self._finished_reading = True
                     break
                 else:
-                    raise Exception("single_pass mode is off but the example generator is out of data; error.")
+                    raise Exception("single_pass mode is off but the sample generator is out of data; error.")
 
-            sample = Sample(article, summary, self._vocab)  # Process into an Sample.
+            sample = Sample(article, summary, self._vocab)
 
             self._sample_queue.put(sample)  # place the Example in the sample queue.
 
     def fill_batch_queue(self):
         while True:
             if self.mode == 'decode':
-                # beam search decode mode single example repeated in the batch
+                # beam search decode mode single sample repeated in the batch
                 ex = self._sample_queue.get()
                 b = [ex for _ in range(self.batch_size)]
 
@@ -119,7 +121,7 @@ class Batcher(object):
             time.sleep(60)
             for idx, t in enumerate(self._sample_q_threads):
                 if not t.is_alive():  # if the thread is dead
-                    logging.error('Found example queue thread dead. Restarting.')
+                    logging.error('Found sample queue thread dead. Restarting.')
 
                     new_t = Thread(target=self.fill_sample_queue)
                     self._sample_q_threads[idx] = new_t
@@ -136,12 +138,16 @@ class Batcher(object):
                     new_t.start()
 
     def sample_generator(self, article_path, summary_path, single_pass):
-        art_reader = open(article_path, 'r')
-        sum_reader = open(summary_path, 'r')
-
         while True:
-            article = next(art_reader)
-            summary = next(sum_reader)
+            with open(article_path, 'r') as art_reader, open(summary_path, 'r') as sum_reader:
+                while True:
+                    article = next(art_reader)
+                    summary = next(sum_reader)
 
-            yield Sample(article, summary, self._vocab)
+                    if article == '' or summary == '':
+                        break
 
+                    yield Sample(article, summary, self._vocab)
+
+                if single_pass:
+                    break

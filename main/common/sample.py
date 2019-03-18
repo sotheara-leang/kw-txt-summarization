@@ -1,6 +1,5 @@
 # Most codes are from https://github.com/rohithreddy024/Text-Summarizer-Pytorch/blob/master/data_util/batcher.py
 
-from main.common.common import *
 from main.common.vocab import *
 
 
@@ -23,7 +22,7 @@ class Sample(object):
         self.enc_input = [vocab.word2id(w) for w in article_words]  # list of word ids; OOVs are represented by the id for UNK token
 
         # Process the summary
-        summary_words = summary.split()                             # list of strings
+        summary_words = summary.split()
         summary_ids = [vocab.word2id(w) for w in summary_words]     # list of word ids; OOVs are represented by the id for UNK token
 
         # Get the decoder input sequence and target sequence
@@ -35,10 +34,10 @@ class Sample(object):
         self.enc_input_extend_vocab, self.article_oovs = article2ids(article_words, vocab)
 
         # Get a verison of the reference summary where in-article OOVs are represented by their temporary article OOV id
-        abs_ids_extend_vocab = summary2ids(summary_words, vocab, self.article_oovs)
+        summary_ids_extend_vocab = summary2ids(summary_words, vocab, self.article_oovs)
 
         # Get decoder target sequence
-        _, self.target = self.get_dec_inp_targ_seqs(abs_ids_extend_vocab, conf.get('max-dec-steps'), start_decoding, stop_decoding)
+        _, self.target = self.get_dec_inp_targ_seqs(summary_ids_extend_vocab, conf.get('max-dec-steps'), start_decoding, stop_decoding)
 
     # get decoder input target sequences
     def get_dec_inp_targ_seqs(self, sequence, max_len, start_id, stop_id):
