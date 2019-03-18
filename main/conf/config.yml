@@ -5,3 +5,6 @@ intra-encoder: true
 intra-decoder: true
 
 vocab-size: 100
+
+max-enc-steps: 1000
+max-dec-steps: 100
