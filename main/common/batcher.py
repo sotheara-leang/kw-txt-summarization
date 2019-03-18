@@ -1,3 +1,5 @@
+# Most codes are from https://github.com/rohithreddy024/Text-Summarizer-Pytorch/blob/master/data_util/batcher.py
+
 import queue as Queue
 import time
 

@@ -1,4 +1,4 @@
-# Most of this file is copied form https://github.com/rohithreddy024/Text-Summarizer-Pytorch/blob/master/data_util/data.py
+# Most codes are from https://github.com/rohithreddy024/Text-Summarizer-Pytorch/blob/master/data_util/data.py
 
 import csv
 
@@ -6,10 +6,10 @@ import csv
 SENTENCE_START = '<s>'
 SENTENCE_END = '</s>'
 
-PAD_TOKEN = '[PAD]'  # This has a vocab id, which is used to pad the encoder input, decoder input and target sequence
-UNKNOWN_TOKEN = '[UNK]'  # This has a vocab id, which is used to represent out-of-vocabulary words
+PAD_TOKEN = '[PAD]'         # This has a vocab id, which is used to pad the encoder input, decoder input and target sequence
+UNKNOWN_TOKEN = '[UNK]'     # This has a vocab id, which is used to represent out-of-vocabulary words
 START_DECODING = '[START]'  # This has a vocab id, which is used at the start of every decoder input sequence
-STOP_DECODING = '[STOP]'  # This has a vocab id, which is used at the end of untruncated target sequences
+STOP_DECODING = '[STOP]'    # This has a vocab id, which is used at the end of untruncated target sequences
 
 
 # Note: none of <s>, </s>, [PAD], [UNK], [START], [STOP] should appear in the vocab file.
@@ -37,8 +37,7 @@ class Vocab(object):
                     continue
                 w = pieces[0]
                 if w in [SENTENCE_START, SENTENCE_END, UNKNOWN_TOKEN, PAD_TOKEN, START_DECODING, STOP_DECODING]:
-                    raise Exception(
-                        '<s>, </s>, [UNK], [PAD], [START] and [STOP] shouldn\'t be in the vocab file, but %s is' % w)
+                    raise Exception('<s>, </s>, [UNK], [PAD], [START] and [STOP] shouldn\'t be in the vocab file, but %s is' % w)
                 if w in self._word_to_id:
                     raise Exception('Duplicated word in vocabulary file: %s' % w)
 
@@ -64,9 +63,9 @@ class Vocab(object):
     def size(self):
         return self._count
 
-    def write_metadata(self, fpath):
-        print("Writing word embedding metadata file to %s..." % (fpath))
-        with open(fpath, "w") as f:
+    def write_metadata(self, file_path):
+        print("Writing word embedding metadata file to %s..." % file_path)
+        with open(file_path, "w") as f:
             fieldnames = ['word']
             writer = csv.DictWriter(f, delimiter="\t", fieldnames=fieldnames)
             for i in range(self.size()):
@@ -116,9 +115,7 @@ def outputids2words(id_list, vocab, article_oovs):
             try:
                 w = article_oovs[article_oov_idx]
             except ValueError as e:  # i doesn't correspond to an article oov
-                raise ValueError(
-                    'Error: model produced word ID %i which corresponds to article OOV %i but this example only has %i article OOVs' % (
-                    i, article_oov_idx, len(article_oovs)))
+                raise ValueError('Error: model produced word ID %i which corresponds to article OOV %i but this example only has %i article OOVs' % (i, article_oov_idx, len(article_oovs)))
         words.append(w)
     return words
 

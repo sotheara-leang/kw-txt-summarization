@@ -1,4 +1,4 @@
-# Most of this file is copied form https://github.com/rohithreddy024/Text-Summarizer-Pytorch/blob/master/data_util/batcher.py
+# Most codes are from https://github.com/rohithreddy024/Text-Summarizer-Pytorch/blob/master/data_util/batcher.py
 
 from main.common.common import *
 from main.common.vocab import *
@@ -19,17 +19,15 @@ class Sample(object):
         if len(article_words) > conf.get('max-enc-steps'):
             article_words = article_words[:conf.get('max-enc-steps')]
 
-        self.enc_len = len(article_words)  # store the length after truncation but before padding
-        self.enc_input = [vocab.word2id(w) for w in
-                          article_words]  # list of word ids; OOVs are represented by the id for UNK token
+        self.enc_len = len(article_words)                           # store the length after truncation but before padding
+        self.enc_input = [vocab.word2id(w) for w in article_words]  # list of word ids; OOVs are represented by the id for UNK token
 
         # Process the summary
-        summary_words = summary.split()  # list of strings
-        abs_ids = [vocab.word2id(w) for w in
-                   summary_words]  # list of word ids; OOVs are represented by the id for UNK token
+        summary_words = summary.split()                             # list of strings
+        summary_ids = [vocab.word2id(w) for w in summary_words]     # list of word ids; OOVs are represented by the id for UNK token
 
         # Get the decoder input sequence and target sequence
-        self.dec_input, _ = self.get_dec_inp_targ_seqs(abs_ids, conf.get('max-dec-steps'), start_decoding, stop_decoding)
+        self.dec_input, _ = self.get_dec_inp_targ_seqs(summary_ids, conf.get('max-dec-steps'), start_decoding, stop_decoding)
         self.dec_len = len(self.dec_input)
 
         # If using pointer-generator mode, we need to store some extra info

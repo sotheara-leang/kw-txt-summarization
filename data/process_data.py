@@ -95,7 +95,7 @@ def generate_vocab(article_file, summary_file, vocab_file=None):
             num_rex = re.compile('#+.?#*')
 
             for word in vocab_counter:
-                if num_rex.match(word) is not None:
+                if num_rex.match(word) is not None or word.lower() == '<unk>':
                     continue
 
                 count = vocab_counter[word]
