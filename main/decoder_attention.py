@@ -15,7 +15,7 @@ class DecoderAttention(nn.Module):
     '''
         :param
             dec_hidden      : B, 2H
-            pre_dec_hidden  : B, L, 2H
+            pre_dec_hidden  : B, T, 2H
             
         :return
             context_vector  : B, 2*H
