@@ -3,8 +3,13 @@ hidden-size: 2
 
 max-enc-steps: 1000
 max-dec-steps: 100
+vocab-file: main/resource/vocab.txt
 
 training:
+  force_teaching_rate: 0.25
+  learning_rate_ml: 0.001
+  learning_rate_rl: 0.0001
+  reinforce_weight: 0.9984
   batch-size: 100
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt

@@ -43,7 +43,7 @@ class Seq2Seq(nn.Module):
         :return
             y       : B, 1
     '''
-    def forward(self, x, seq_len, extend_vocab, extra_zero):
+    def forward(self, x, seq_len, extend_vocab, extra_zero, greedy_search=True):
         # embedding input
         x = self.embedding(x)
 
@@ -66,7 +66,6 @@ class Seq2Seq(nn.Module):
         pre_dec_hidden = None   # B, T, 2H
 
         for i in range(self.max_dec_steps):
-
             # decode current state
             dec_hidden, _ = self.decoder(dec_input, enc_hidden_n if not pre_dec_hidden else pre_dec_hidden[:, -1, :], enc_ctx_vector)    # B, 2H
 
@@ -80,12 +79,6 @@ class Seq2Seq(nn.Module):
             # intra-decoder attention
 
             dec_ctx_vector = self.dec_att(dec_hidden, pre_dec_hidden)  # B, 2*H
-
-            # update previous decoder hidden states
-            if pre_dec_hidden is None:
-                pre_dec_hidden = dec_hidden.unsqueeze(1)
-            else:
-                pre_dec_hidden = t.cat([pre_dec_hidden, dec_hidden.unsqueeze(1)], dim=1)
 
             # vocab distribution
 
@@ -107,14 +100,28 @@ class Seq2Seq(nn.Module):
             final_vocab_dist = vocab_dist.scatter_add(1, extend_vocab, p_dist)    # B, V + OOV
 
             # final output
-            _, dec_input = t.max(final_vocab_dist, dim=1)   # B, 1
+            if greedy_search:
+                _, dec_output = t.max(final_vocab_dist, dim=1)   # B, 1
+                # _, dec_output = t.topk(final_vocab_dist, 1, dim=1)
+            else:
+                # sampling
+                dec_output = t.multinomial(final_vocab_dist, 1).squeeze()
 
             # store output
-            y.append(dec_input)
+            y.append(dec_output)
 
             # stop when reaching STOP_DECODING
-            if dec_input == self.vocab.word2id(STOP_DECODING):
+            if dec_output == self.vocab.word2id(STOP_DECODING):
                 break
+
+            # set next input as current output
+            dec_input = dec_output
+
+            # update previous decoder hidden states
+            if pre_dec_hidden is None:
+                pre_dec_hidden = dec_hidden.unsqueeze(1)
+            else:
+                pre_dec_hidden = t.cat([pre_dec_hidden, dec_hidden.unsqueeze(1)], dim=1)
 
         return y
 

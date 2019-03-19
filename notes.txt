@@ -1,4 +1,4 @@
-Implementation Text-Summarizer-Pytorch from follows https://github.com/rohithreddy024/Text-Summarizer-Pytorch
+Some implementations follow Text-Summarizer-Pytorch from https://github.com/rohithreddy024/Text-Summarizer-Pytorch
 
 1. Dataset
 

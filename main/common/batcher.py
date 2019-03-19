@@ -76,8 +76,6 @@ class Batcher(object):
             try:
                 sample = next(sample_generator)
 
-                print(sample.article)
-
             except StopIteration:  # if there are no more examples:
                 logging.info("The sample generator for this sample queue filling thread has exhausted data.")
 
