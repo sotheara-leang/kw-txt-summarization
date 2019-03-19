@@ -34,11 +34,16 @@ class Seq2Seq(nn.Module):
 
         self.p_gen = nn.Linear(5 * self.hidden_size, 1)
 
-    def forward(self, x, seq_len):
-
-        extra_zeros = {}
-        enc_batch_extend_vocab = {}
-
+    '''
+        :param
+            x       : B, L, H
+            seq_len : L
+            
+            
+        :return
+            y       : B, 1
+    '''
+    def forward(self, x, seq_len, extend_vocab, extra_zero):
         # embedding input
         x = self.embedding(x)
 
@@ -88,21 +93,21 @@ class Seq2Seq(nn.Module):
 
             vocab_dist = (1 - p_gen) * vocab_dist   # B, V
 
-            if extra_zeros is not None:
-                vocab_dist = t.cat([vocab_dist, extra_zeros], dim=1)    # B, V + OOV
+            if extra_zero is not None:
+                vocab_dist = t.cat([vocab_dist, extra_zero], dim=1)    # B, V + OOV
 
             p_dist = p_gen * enc_att    # B, L
 
-            final_vocab_dist = vocab_dist.scatter_add(1, enc_batch_extend_vocab, p_dist)    # B, V + OOV
+            final_vocab_dist = vocab_dist.scatter_add(1, extend_vocab, p_dist)    # B, V + OOV
 
-            _, dec_input = t.max(final_vocab_dist, dim=1)
+            _, dec_input = t.max(final_vocab_dist, dim=1)   # B, 1
 
             pre_dec_hidden = dec_hidden
 
-            # store final output
+            # store output
             y.append(dec_input)
 
-            # reach the token STOP_DECODING
+            # stop when reaching STOP_DECODING
             if dec_input == self.vocab.word2id(STOP_DECODING):
                 break
 
