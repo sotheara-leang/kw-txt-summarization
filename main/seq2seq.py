@@ -70,7 +70,6 @@ class Seq2Seq(nn.Module):
             # decode current state
             dec_hidden, _ = self.decoder(dec_input, enc_hidden_n if not pre_dec_hidden else pre_dec_hidden[:, -1, :], enc_ctx_vector)    # B, 2H
 
-
             # intra-encoder attention
 
             # enc_ctx_vector        : B, 2 * H
@@ -78,23 +77,25 @@ class Seq2Seq(nn.Module):
             # sum_temporal_score    : B, L
             enc_ctx_vector, enc_att, sum_temporal_score = self.enc_att(dec_hidden, enc_outputs, sum_temporal_score)
 
-
             # intra-decoder attention
 
             dec_ctx_vector = self.dec_att(dec_hidden, pre_dec_hidden)  # B, 2*H
 
+            # update previous decoder hidden states
+            if pre_dec_hidden is None:
+                pre_dec_hidden = dec_hidden.unsqueeze(1)
+            else:
+                pre_dec_hidden = t.cat([pre_dec_hidden, dec_hidden.unsqueeze(1)], dim=1)
 
             # vocab distribution
 
             vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector])), dim=1)  # B, V
 
-
             # pointer-generator
 
             p_gen = f.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector])))  # B, 1
 
-
-            # final distribution
+            # final vocab distribution
 
             vocab_dist = (1 - p_gen) * vocab_dist   # B, V
 
@@ -106,13 +107,7 @@ class Seq2Seq(nn.Module):
             final_vocab_dist = vocab_dist.scatter_add(1, extend_vocab, p_dist)    # B, V + OOV
 
             # final output
-            _, dec_hidden = t.max(final_vocab_dist, dim=1)   # B, 1
-
-            # update previous decoder hidden states
-            if pre_dec_hidden is None:
-                pre_dec_hidden = dec_hidden.unsqueeze(1)
-            else:
-                pre_dec_hidden = t.cat([pre_dec_hidden, dec_hidden.unsqueeze(1)], dim=1)
+            _, dec_input = t.max(final_vocab_dist, dim=1)   # B, 1
 
             # store output
             y.append(dec_input)
