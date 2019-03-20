@@ -15,18 +15,17 @@ class EncoderAttention(nn.Module):
     '''
         :param
             dec_hidden  : B, 2H
-            enc_hidden  : B, L, 2H
+            enc_hiddens : B, L, 2H
             sum_score   : B, L
         
         :return
-            context_vector  : B, 2*H
-            sum_score       : B, L
+            ctx_vector  : B, 2H
+            sum_score   : B, L
     '''
-    def forward(self, dec_hidden, enc_hidden, sum_temporal_score):
-        # dec_hidden.unsqueeze(1).expand(-1, enc_hidden.size(1), -1)
-        dec_hidden = dec_hidden.unsqueeze(1).repeat(1, enc_hidden.size(1), 1)   # B, L, 2H
+    def forward(self, dec_hidden, enc_hiddens, sum_temporal_score):
+        dec_hidden = dec_hidden.unsqueeze(1).repeat(1, enc_hiddens.size(1), 1)   # B, L, 2H
 
-        score = self.attn(dec_hidden, enc_hidden).squeeze(2)   # B, L
+        score = self.attn(dec_hidden, enc_hiddens).squeeze(2)   # B, L
 
         # temporal normalization
 
@@ -41,11 +40,11 @@ class EncoderAttention(nn.Module):
         # normalization
 
         normalization_factor = score.sum(1, keepdim=True)   # B, L
-        attention = score / normalization_factor            # B, L
+        att_dist = score / normalization_factor            # B, L
 
         # context vector
 
-        context_vector = t.bmm(attention.unsqueeze(1), enc_hidden)  # B, 1, L * B, L, 2H  ->  B, 1, 2*H
-        context_vector = context_vector.squeeze(1)  # B, 2*H
+        ctx_vector = t.bmm(att_dist.unsqueeze(1), enc_hiddens)  # B, 1, L * B, L, 2H  ->  B, 1, 2H
+        ctx_vector = ctx_vector.squeeze(1)  # B, 2*H
 
-        return context_vector, attention, sum_temporal_score
+        return ctx_vector, att_dist, sum_temporal_score

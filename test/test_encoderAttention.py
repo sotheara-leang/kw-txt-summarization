@@ -17,7 +17,7 @@ class TestEncoderAttention(TestCase):
 
         encoder_attention = EncoderAttention()
 
-        context_vector, sum_score = encoder_attention(dec_hidden, enc_hidden, sum_score)
+        context_vector, attention, sum_score = encoder_attention(dec_hidden, enc_hidden, sum_score)
 
         print(context_vector, context_vector.size())
         print(sum_score, sum_score.size())
