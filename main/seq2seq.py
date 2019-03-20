@@ -59,13 +59,20 @@ class Seq2Seq(nn.Module):
         # initial summation of temporal_score
         sum_temporal_score = None
 
-        # decoding outputs
-        y = []
-
         # previous decoder hidden states
         pre_dec_hidden = None   # B, T, 2H
 
+        # decoding outputs
+        y = []
+
+        # decoding probabilities
+        y_prob = []
+
         for i in range(self.max_dec_steps):
+
+            # embedding decoder input
+            dec_input = self.embedding(dec_input)
+
             # decode current state
             dec_hidden, _ = self.decoder(dec_input, enc_hidden_n if not pre_dec_hidden else pre_dec_hidden[:, -1, :], enc_ctx_vector)    # B, 2H
 
@@ -99,13 +106,14 @@ class Seq2Seq(nn.Module):
 
             final_vocab_dist = vocab_dist.scatter_add(1, extend_vocab, p_dist)    # B, V + OOV
 
-            # final output
+            # final output & output probabilities
             if greedy_search:
-                _, dec_output = t.max(final_vocab_dist, dim=1)   # B, 1
-                # _, dec_output = t.topk(final_vocab_dist, 1, dim=1)
+                dec_output_prob, dec_output = t.max(final_vocab_dist, dim=1)   # B, 1
+                y_prob.append(dec_output_prob)
             else:
                 # sampling
                 dec_output = t.multinomial(final_vocab_dist, 1).squeeze()
+                y_prob.append(final_vocab_dist[dec_output])
 
             # store output
             y.append(dec_output)
@@ -123,5 +131,6 @@ class Seq2Seq(nn.Module):
             else:
                 pre_dec_hidden = t.cat([pre_dec_hidden, dec_hidden.unsqueeze(1)], dim=1)
 
-        return y
+        return y, y_prob
+
 

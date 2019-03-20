@@ -23,6 +23,7 @@ class EncoderAttention(nn.Module):
             sum_score       : B, L
     '''
     def forward(self, dec_hidden, enc_hidden, sum_temporal_score):
+        # dec_hidden.unsqueeze(1).expand(-1, enc_hidden.size(1), -1)
         dec_hidden = dec_hidden.unsqueeze(1).repeat(1, enc_hidden.size(1), 1)   # B, L, 2H
 
         score = self.attn(dec_hidden, enc_hidden).squeeze(2)   # B, L

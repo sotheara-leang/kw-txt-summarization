@@ -1,16 +1,18 @@
-emb-size: 2
-hidden-size: 2
+emb-size: 2 # 100 - Glove
+hidden-size: 2 # 200
 
 max-enc-steps: 1000
 max-dec-steps: 100
 vocab-file: main/resource/vocab.txt
 
+mode: train
+
 training:
-  force_teaching_rate: 0.25
-  learning_rate_ml: 0.001
-  learning_rate_rl: 0.0001
-  reinforce_weight: 0.9984
-  batch-size: 100
+  tf: 0.25
+  lr: 0.0001
+  rl-weight: 0.9984
+  batch-size: 50
+  epoch:  1
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt
   vocab-file: data/train/vocab.txt
