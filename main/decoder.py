@@ -9,27 +9,18 @@ class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
 
-        emb_size = conf.get('emb-size')
-        hidden_size = conf.get('hidden-size')
-
-        self.x_concat = nn.Linear(2 * hidden_size + emb_size, emb_size)
-
-        self.lstm = nn.LSTMCell(emb_size, 2 * hidden_size)
+        self.lstm = nn.LSTMCell(conf.get('emb-size'), 2 * conf.get('hidden-size'))
 
     '''
         :param
-            x               : B, 2H
+            y               : B, E
             pre_hidden      : B, 2H
-            ctx_vector      : B, 2H
         
         :return
+            hidden          : B, 2H
+            cell            : B, 2H
            
     '''
-    def forward(self, x, pre_hidden, ctx_vector):
-        # concatenate input with encoder context vector
-        x = self.x_concat(t.cat([x, ctx_vector], dim=1))    # B, E + 2H
-
-        # new decoder state
-        hidden, _ = self.lstm(x, pre_hidden)  # B, 2H
-
-        return hidden
+    def forward(self, y, pre_hidden):
+        hidden, cell = self.lstm(y, pre_hidden)  # B, 2H
+        return hidden, cell

@@ -19,6 +19,7 @@ class Seq2Seq(nn.Module):
         self.hidden_size    = conf.get('hidden-size')
         self.vocab_size     = conf.get('vocab-size')
         self.max_dec_steps  = conf.get('max-dec-steps')
+        self.tf_rate        = conf.get('training')['tf']    # teacher forcing rate
 
         self.vocab = vocab
 
@@ -36,31 +37,28 @@ class Seq2Seq(nn.Module):
 
     '''
         :param
-            x       : B, L, H
+            x       : B, L, E
             seq_len : L
             
             
         :return
             y       : B, 1
     '''
-    def forward(self, x, seq_len, extend_vocab, extra_zero, greedy_search=True):
+    def forward(self, x, seq_len, target_y, extend_vocab, extra_zero, teacher_forcing=False, greedy_search=True):
         # embedding input
         x = self.embedding(x)
 
         # encoding input
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.encoder(x, seq_len)
 
-        # initial encoder context vector
-        enc_ctx_vector = t.zeros(x.size(0), 2 * self.hidden_dim)
-
         # initial decoder input
         dec_input = t.LongTensor(len(enc_outputs)).fill_(self.vocab.word2id(START_DECODING))
 
         # initial summation of temporal_score
-        sum_temporal_score = None
+        enc_temporal_score = None
 
         # previous decoder hidden states
-        pre_dec_hidden = None   # B, T, 2H
+        pre_dec_hiddens = None   # B, T, 2H
 
         # decoding outputs
         y = []
@@ -73,64 +71,77 @@ class Seq2Seq(nn.Module):
             # embedding decoder input
             dec_input = self.embedding(dec_input)
 
-            # decode current state
-            dec_hidden, _ = self.decoder(dec_input, enc_hidden_n if not pre_dec_hidden else pre_dec_hidden[:, -1, :], enc_ctx_vector)    # B, 2H
+            # decoding
+            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(dec_input, dec_hidden, pre_dec_hiddens, enc_outputs, enc_temporal_score, extend_vocab, extra_zero)
 
-            # intra-encoder attention
-
-            # enc_ctx_vector        : B, 2 * H
-            # enc_att               : B, L
-            # sum_temporal_score    : B, L
-            enc_ctx_vector, enc_att, sum_temporal_score = self.enc_att(dec_hidden, enc_outputs, sum_temporal_score)
-
-            # intra-decoder attention
-
-            dec_ctx_vector = self.dec_att(dec_hidden, pre_dec_hidden)  # B, 2*H
-
-            # vocab distribution
-
-            vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector])), dim=1)  # B, V
-
-            # pointer-generator
-
-            p_gen = f.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector])))  # B, 1
-
-            # final vocab distribution
-
-            vocab_dist = (1 - p_gen) * vocab_dist   # B, V
-
-            if extra_zero is not None:
-                vocab_dist = t.cat([vocab_dist, extra_zero], dim=1)    # B, V + OOV
-
-            p_dist = p_gen * enc_att    # B, L
-
-            final_vocab_dist = vocab_dist.scatter_add(1, extend_vocab, p_dist)    # B, V + OOV
-
-            # final output & output probabilities
+            # output
             if greedy_search:
-                dec_output_prob, dec_output = t.max(final_vocab_dist, dim=1)   # B, 1
-                y_prob.append(dec_output_prob)
+                _, dec_output = t.max(vocab_dist, dim=1)   # B, 1
             else:
                 # sampling
-                dec_output = t.multinomial(final_vocab_dist, 1).squeeze()
-                y_prob.append(final_vocab_dist[dec_output])
+                dec_output = t.multinomial(vocab_dist, 1).squeeze()
 
-            # store output
             y.append(dec_output)
+            y_prob.append(dec_output)
 
             # stop when reaching STOP_DECODING
             if dec_output == self.vocab.word2id(STOP_DECODING):
                 break
 
-            # set next input as current output
-            dec_input = dec_output
+            # define next input
+            if teacher_forcing:
+                use_ground_truth = (t.rand(len(x)) > self.tf).long()
+                dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output
+            else:
+                dec_input = dec_output
 
             # update previous decoder hidden states
-            if pre_dec_hidden is None:
-                pre_dec_hidden = dec_hidden.unsqueeze(1)
+            if pre_dec_hiddens is None:
+                pre_dec_hiddens = dec_hidden.unsqueeze(1)
             else:
-                pre_dec_hidden = t.cat([pre_dec_hidden, dec_hidden.unsqueeze(1)], dim=1)
+                pre_dec_hiddens = t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
-        return y, y_prob
+        return t.tensor(y), t.tensor(y_prob)
 
+    '''
+        
+    '''
+    def decode(self, dec_input, dec_hidden, pre_dec_hiddens, enc_hiddens, enc_temporal_score, extend_vocab, extra_zero, log_prob=True):
 
+        # current decoder hidden
+        dec_hidden, _ = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :])  # B, 2H
+
+        # intra-encoder attention
+
+        # enc_ctx_vector        : B, 2 * H
+        # enc_att               : B, L
+        # sum_temporal_score    : B, L
+        enc_ctx_vector, enc_att, enc_temporal_score = self.enc_att(dec_hidden, enc_hiddens, enc_temporal_score)
+
+        # intra-decoder attention
+
+        dec_ctx_vector = self.dec_att(dec_hidden, pre_dec_hiddens[:, -1, :])  # B, 2*H
+
+        # vocab distribution
+
+        vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector])), dim=1)  # B, V
+
+        # pointer-generator
+
+        p_gen = f.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector])))  # B, 1
+
+        # final vocab distribution
+
+        vocab_dist = (1 - p_gen) * vocab_dist  # B, V
+
+        if extra_zero is not None:
+            vocab_dist = t.cat([vocab_dist, extra_zero], dim=1)  # B, V + OOV
+
+        p_dist = p_gen * enc_att  # B, L
+
+        vocab_dist = vocab_dist.scatter_add(1, extend_vocab, p_dist)  # B, V + OOV
+
+        if log_prob:
+            vocab_dist = t.log(vocab_dist, 1e-31)
+
+        return vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score

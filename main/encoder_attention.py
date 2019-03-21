@@ -19,11 +19,11 @@ class EncoderAttention(nn.Module):
             sum_score    : B, L
         
         :return
-            ctx_vector      : B, 2H
-            att_dist        : B, L
-            temporal_score  : B, L
+            ctx_vector          : B, 2H
+            att_dist            : B, L
+            enc_temporal_score  : B, L
     '''
-    def forward(self, dec_hidden, enc_hiddens, temporal_score):
+    def forward(self, dec_hidden, enc_hiddens, enc_temporal_score):
         dec_hidden = dec_hidden.unsqueeze(1).expand(-1, enc_hiddens.size(1), -1).contiguous()  # B, L, 2H
 
         score = self.attn(dec_hidden, enc_hiddens).squeeze(2)   # B, L
@@ -31,12 +31,12 @@ class EncoderAttention(nn.Module):
         # temporal normalization
 
         exp_score = t.exp(score)    # B, L
-        if temporal_score is None:
+        if enc_temporal_score is None:
             score = exp_score
-            temporal_score = exp_score
+            enc_temporal_score = exp_score
         else:
-            score = exp_score / temporal_score
-            temporal_score += exp_score
+            score = exp_score / enc_temporal_score
+            enc_temporal_score += exp_score
 
         # normalization
 
@@ -48,4 +48,4 @@ class EncoderAttention(nn.Module):
         ctx_vector = t.bmm(att_dist.unsqueeze(1), enc_hiddens)  # B, 1, L * B, L, 2H  =>  B, 1, 2H
         ctx_vector = ctx_vector.squeeze(1)  # B, 2*H
 
-        return ctx_vector, att_dist, temporal_score
+        return ctx_vector, att_dist, enc_temporal_score
