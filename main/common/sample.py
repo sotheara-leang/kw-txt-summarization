@@ -6,9 +6,6 @@ from main.common.vocab import *
 class Sample(object):
 
     def __init__(self, article, summary, vocab):
-        self.article = article
-        self.summary = summary
-
         # Get ids of special tokens
         start_decoding = vocab.word2id(START_DECODING)
         stop_decoding = vocab.word2id(STOP_DECODING)

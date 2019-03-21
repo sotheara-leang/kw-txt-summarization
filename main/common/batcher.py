@@ -16,12 +16,11 @@ class Batcher(object):
 
     BATCH_QUEUE_MAX = 1000  # max number of batches the batch_queue can hold
 
-    def __init__(self, article_path, summary_path, vocab, batch_size, mode='train', single_pass=True):
+    def __init__(self, article_path, summary_path, vocab, batch_size, single_pass=True):
         self._article_path = article_path
         self._summary_path = summary_path
-        self._vocab = vocab
+        self.vocab = vocab
         self._single_pass = single_pass
-        self.mode = mode
         self.batch_size = batch_size
 
         # Initialize a queue of Batches waiting to be used, and a queue of Samples waiting to be batched
@@ -71,12 +70,11 @@ class Batcher(object):
 
     def fill_sample_queue(self):
         sample_generator = self.sample_generator(self._article_path, self._summary_path, self._single_pass)
-
         while True:
             try:
                 sample = next(sample_generator)
 
-            except StopIteration:  # if there are no more examples:
+            except StopIteration:
                 logging.info("The sample generator for this sample queue filling thread has exhausted data.")
 
                 if self._single_pass:
@@ -86,34 +84,26 @@ class Batcher(object):
                 else:
                     raise Exception("single_pass mode is off but the sample generator is out of data; error.")
 
-            sample = Sample(sample.article, sample.summary, self._vocab)
-
-            self._sample_queue.put(sample)  # place the Example in the sample queue.
+            self._sample_queue.put(sample)
 
     def fill_batch_queue(self):
-        while True:
-            if self.mode == 'decode':
-                # beam search decode mode single sample repeated in the batch
-                ex = self._sample_queue.get()
-                b = [ex for _ in range(self.batch_size)]
+        # Get bucketing_cache_size-many batches of Samples into a list, then sort
+        inputs = []
+        for _ in range(self.batch_size * self._bucketing_cache_size):
+            inputs.append(self._sample_queue.get())
 
-                self._batch_queue.put(Batch(b, self._vocab, self.batch_size))
-            else:
-                # Get bucketing_cache_size-many batches of Samples into a list, then sort
-                inputs = []
-                for _ in range(self.batch_size * self._bucketing_cache_size):
-                    inputs.append(self._sample_queue.get())
+        inputs = sorted(inputs, key=lambda inp: inp.enc_len, reverse=True)  # sort by length of encoder sequence
 
-                inputs = sorted(inputs, key=lambda inp: inp.enc_len, reverse=True)  # sort by length of encoder sequence
+        # Group the sorted Samples into batches, optionally shuffle the batches, and place in the batch queue.
+        batches = []
+        for i in range(0, len(inputs), self.batch_size):
+            batches.append(inputs[i:i + self.batch_size])
 
-                # Group the sorted Examples into batches, optionally shuffle the batches, and place in the batch queue.
-                batches = []
-                for i in range(0, len(inputs), self.batch_size):
-                    batches.append(inputs[i:i + self.batch_size])
-                if not self._single_pass:
-                    shuffle(batches)
-                for b in batches:  # each b is a list of Example objects
-                    self._batch_queue.put(Batch(b, self._vocab, self.batch_size))
+        if not self._single_pass:
+            shuffle(batches)
+
+        for b in batches:  # each b is a list of Sample objects
+            self._batch_queue.put(Batch(b, self._vocab, self.batch_size))
 
     def watch_threads(self):
         while True:
@@ -148,7 +138,7 @@ class Batcher(object):
                     if article == '' or summary == '':
                         break
 
-                    yield Sample(article, summary, self._vocab)
+                    yield Sample(article, summary, self.vocab)
 
                 if single_pass:
                     break

@@ -11,8 +11,8 @@ training:
   tf: 0.25
   lr: 0.0001
   rl-weight: 0.9984
+  epoch: 10
   batch-size: 50
-  epoch:  1
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt
   vocab-file: data/train/vocab.txt

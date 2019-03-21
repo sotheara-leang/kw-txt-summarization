@@ -21,8 +21,8 @@ class Vocab(object):
         self._id_to_word = {}
         self._count = 0  # keeps track of total number of words in the Vocab
 
-        # [UNK], [PAD], [START] and [STOP] get the ids 0, 1, 2, 3.
-        for w in [UNKNOWN_TOKEN, PAD_TOKEN, START_DECODING, STOP_DECODING]:
+        # [PAD], [UNK], [START] and [STOP] get the ids 0, 1, 2, 3.
+        for w in [PAD_TOKEN, UNKNOWN_TOKEN, START_DECODING, STOP_DECODING]:
             self._word_to_id[w] = self._count
             self._id_to_word[self._count] = w
             self._count += 1

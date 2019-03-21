@@ -12,18 +12,17 @@ from main.common.vocab import *
 
 class Seq2Seq(nn.Module):
 
-    def __int__(self, vocab):
+    def __init__(self, vocab):
         super(Seq2Seq, self).__init__()
 
         self.emb_size       = conf.get('emb-size')
         self.hidden_size    = conf.get('hidden-size')
-        self.vocab_size     = conf.get('vocab-size')
         self.max_dec_steps  = conf.get('max-dec-steps')
         self.tf_rate        = conf.get('training')['tf']    # teacher forcing rate
 
         self.vocab = vocab
 
-        self.embedding = nn.Embedding(self.vocab_size, self.emb_size)
+        self.embedding = nn.Embedding(self.vocab.size(), self.emb_size)
 
         self.encoder = Encoder()
         self.decoder = Decoder()
@@ -31,7 +30,7 @@ class Seq2Seq(nn.Module):
         self.enc_att = EncoderAttention()
         self.dec_att = DecoderAttention()
 
-        self.vocab_gen = nn.Linear(5 * self.hidden_size, self.vocab_size)
+        self.vocab_gen = nn.Linear(5 * self.hidden_size, self.vocab.size())
 
         self.p_gen = nn.Linear(5 * self.hidden_size, 1)
 

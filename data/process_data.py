@@ -3,13 +3,13 @@ import argparse
 import collections
 import re
 
+
 def count_samples(file_name):
     counter = 0
-    with open('raw/' + file_name, 'r') as reader:
+    with open(file_name, 'r') as reader:
 
         while reader.readline() != '':
             counter += 1
-            print(counter)
 
     return counter
 
@@ -122,6 +122,8 @@ if __name__ == '__main__':
         chunk_samples(args.file, args.chunk_size)
     elif args.opt == 'gen-vocab':
         generate_vocab(args.art_file, args.sum_file, args.vocab_file)
+    elif args.opt == 'count':
+        count_samples()
     else:
         extract_samples(args.file)
 
