@@ -14,18 +14,18 @@ class Encoder(nn.Module):
 
     '''
         :param
-            x       : B, L, H
+            x       : B, L, E
             seq_len : L
             
         :return
-            outputs   : B, L, 2H
-            hidden    : B, 2H
-            cell      : B, 2H
+            outputs : B, L, 2H
+            hidden  : B, 2H
+            cell    : B, 2H
     '''
     def forward(self, x, seq_len):
         packed_x = rnn.pack_padded_sequence(x, seq_len, batch_first=True)
 
-        # output    : B, L, 2H
+        # outputs   : B, L, 2H
         # hidden    : 2, B, H
         # cell      : 2, B, H
         outputs, (hidden, cell) = self.lstm(packed_x)
@@ -33,12 +33,9 @@ class Encoder(nn.Module):
         outputs, _ = rnn.pad_packed_sequence(outputs, batch_first=True)
 
         # B, 2H
-        hidden = t.cat(list(hidden), dim=1)
+        hidden = hidden.view(-1, outputs.size(2))
 
         # B, 2H
-        cell = t.cat(list(cell), dim=1)
+        cell = cell.view(-1, outputs.size(2))
 
         return outputs, (hidden, cell)
-
-
-
