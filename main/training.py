@@ -46,8 +46,7 @@ class Training(object):
                 if batch is None:
                     break
 
-                enc_articles, enc_summaries, art_extend_vocab, art_oovs = self.batch_initializer.init(batch)
-
+                batch = self.batch_initializer.init(batch)
 
                 self.train_batch(batch)
 

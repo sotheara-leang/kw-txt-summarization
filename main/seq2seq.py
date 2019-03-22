@@ -36,12 +36,14 @@ class Seq2Seq(nn.Module):
 
     '''
         :param
-            x       : B, L, E
-            seq_len : L
-            
+            x           : B, L, E
+            seq_len     : L
+            target_y    :
+            extend_vocab:
             
         :return
-            y       : B, 1
+            y
+            y_prob
     '''
     def forward(self, x, seq_len, target_y, extend_vocab, extra_zero, teacher_forcing=False, greedy_search=True):
         # embedding input

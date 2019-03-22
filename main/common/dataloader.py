@@ -1,5 +1,14 @@
-from main.common.common import *
 from main.common.vocab import *
+
+
+class Batch(object):
+
+    def __init__(self, enc_articles, enc_summaries, oovs):
+        self.enc_articles = enc_articles
+        self.enc_summaries = enc_summaries
+        self.oovs = oovs
+
+        self.max_ovv_len = [len(ovv) for ovv in oovs]
 
 
 class BatchInitializer(object):
@@ -13,11 +22,15 @@ class BatchInitializer(object):
 
         articles, summaries = list(zip(*samples))
 
-        max_article_len = max([len(a.split()) for a in articles])
-        max_summary_len = max([len(s.split()) for s in summaries])
+        article_len = [len(a.split()) for a in articles]
+        summary_len = [len(s.split()) for s in summaries]
+
+        max_article_len = max(article_len)
+        max_summary_len = max(summary_len)
 
         enc_articles = []
         enc_summaries = []
+        oovs = []
 
         # article
         for article in articles:
@@ -25,13 +38,13 @@ class BatchInitializer(object):
             if len(art_words) > max_enc_steps:  # truncate
                 art_words = art_words[:max_enc_steps]
 
-            art_extend_vocab, art_oovs = article2ids(art_words, self.vocab)
+            enc_article, article_oovs = article2ids(art_words, self.vocab)
 
-            enc_article = [self.vocab.word2id(w) for w in art_words]
             while len(enc_article) < max_article_len:
                 enc_article.append(pad_token_id)
 
             enc_articles.append(enc_article)
+            oovs.append(article_oovs)
 
         # summary
         for summary in summaries:
@@ -39,13 +52,15 @@ class BatchInitializer(object):
             if len(summary_words) > max_enc_steps:  # truncate
                 summary_words = summary_words[:max_enc_steps]
 
-            enc_summary = summary2ids(summary_words, self.vocab, art_oovs) + [self.vocab.word2id(STOP_DECODING)]
+            enc_summary = summary2ids(summary_words, self.vocab, oovs) + [self.vocab.word2id(STOP_DECODING)]
             while len(enc_summary) < max_summary_len:
                 enc_summary.append(pad_token_id)
 
             enc_summaries.append(enc_summary)
 
-        return enc_articles, enc_summaries, art_extend_vocab, art_oovs
+        #
+
+        return Batch(enc_articles, enc_summaries, oovs)
 
 
 class DataLoader(object):
