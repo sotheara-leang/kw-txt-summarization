@@ -24,7 +24,7 @@ class EncoderAttention(nn.Module):
             enc_temporal_score  : B, L
     '''
     def forward(self, dec_hidden, enc_hiddens, enc_temporal_score):
-        dec_hidden = dec_hidden.unsqueeze(1).expand(-1, enc_hiddens.size(1), -1).contiguous()  # B, L, 2H
+        dec_hidden = dec_hidden.unsqueeze(1).repeat(1, enc_hiddens.size(1), 1)  # B, L, 2H
 
         score = self.attn(dec_hidden, enc_hiddens).squeeze(2)   # B, L
 

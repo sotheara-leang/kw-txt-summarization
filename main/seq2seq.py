@@ -30,9 +30,9 @@ class Seq2Seq(nn.Module):
         self.enc_att = EncoderAttention()
         self.dec_att = DecoderAttention()
 
-        self.vocab_gen = nn.Linear(5 * self.hidden_size, self.vocab.size())
+        self.vocab_gen = nn.Linear(6 * self.hidden_size, self.vocab.size())
 
-        self.p_gen = nn.Linear(5 * self.hidden_size, 1)
+        self.p_gen = nn.Linear(6 * self.hidden_size, 1)
 
     '''
         :param
@@ -50,7 +50,7 @@ class Seq2Seq(nn.Module):
         x = self.embedding(x)
 
         # encoding input
-        enc_outputs, (enc_hidden_n, enc_cell_n) = self.encoder(x, seq_len)
+        enc_outputs, (enc_hidden_n, _) = self.encoder(x, seq_len)
 
         # initial decoder input = START_DECODING
         dec_input = t.tensor([self.vocab.word2id(START_DECODING)] * x.size(0))
@@ -123,15 +123,15 @@ class Seq2Seq(nn.Module):
 
         # intra-decoder attention
 
-        dec_ctx_vector = self.dec_att(dec_hidden, pre_dec_hiddens[:, -1, :])  # B, 2*H
+        dec_ctx_vector = self.dec_att(dec_hidden, None if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :])  # B, 2*H
 
         # vocab distribution
 
-        vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector])), dim=1)  # B, V
+        vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, V
 
         # pointer-generator
 
-        p_gen = f.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector])))  # B, 1
+        p_gen = f.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, 1
 
         # final vocab distribution
 

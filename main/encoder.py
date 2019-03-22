@@ -31,6 +31,7 @@ class Encoder(nn.Module):
         outputs, (hidden, cell) = self.lstm(packed_x)
 
         outputs, _ = rnn.pad_packed_sequence(outputs, batch_first=True)
+        outputs = outputs.contiguous()
 
         # B, 2H
         hidden = hidden.view(-1, outputs.size(2))
