@@ -9,7 +9,7 @@ class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
 
-        self.lstm = nn.LSTMCell(conf.get('emb-size'), 2 * conf.get('hidden-size'))
+        self.gru = nn.GRUCell(conf.get('emb-size'), 2 * conf.get('hidden-size'))
 
     '''
         :param
@@ -18,9 +18,8 @@ class Decoder(nn.Module):
         
         :return
             hidden          : B, 2H
-            cell            : B, 2H
            
     '''
     def forward(self, y, pre_hidden):
-        hidden, cell = self.lstm(y, pre_hidden)  # B, 2H
-        return hidden, cell
+        hidden = self.gru(y, pre_hidden)  # B, 2H
+        return hidden

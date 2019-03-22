@@ -1,9 +1,10 @@
-emb-size: 2 # 100 - Glove
-hidden-size: 2 # 200
+emb-size: 5 # 100 - Glove
+hidden-size: 5 # 200
 
 max-enc-steps: 1000
 max-dec-steps: 100
 vocab-file: main/resource/vocab.txt
+emb-max-oov: 100
 
 mode: train
 
@@ -11,8 +12,8 @@ training:
   tf: 0.25
   lr: 0.0001
   rl-weight: 0.9984
-  epoch: 10
-  batch-size: 50
+  epoch: 1
+  batch-size: 3
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt
   vocab-file: data/train/vocab.txt

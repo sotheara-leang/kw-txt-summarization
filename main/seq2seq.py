@@ -22,7 +22,7 @@ class Seq2Seq(nn.Module):
 
         self.vocab = vocab
 
-        self.embedding = nn.Embedding(self.vocab.size(), self.emb_size)
+        self.embedding = nn.Embedding(self.vocab.size() + conf.get('emb-max-oov'), self.emb_size)
 
         self.encoder = Encoder()
         self.decoder = Decoder()
@@ -45,15 +45,18 @@ class Seq2Seq(nn.Module):
             y
             y_prob
     '''
-    def forward(self, x, seq_len, target_y, extend_vocab, extra_zero, teacher_forcing=False, greedy_search=True):
+    def forward(self, x, seq_len, target_y, extend_vocab, oov_extra_zero, teacher_forcing=False, greedy_search=True):
         # embedding input
         x = self.embedding(x)
 
         # encoding input
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.encoder(x, seq_len)
 
-        # initial decoder input
-        dec_input = t.LongTensor(len(enc_outputs)).fill_(self.vocab.word2id(START_DECODING))
+        # initial decoder input = START_DECODING
+        dec_input = t.tensor([self.vocab.word2id(START_DECODING)] * x.size(0))
+
+        # initial decoder hidden
+        dec_hidden = enc_hidden_n
 
         # initial summation of temporal_score
         enc_temporal_score = None
@@ -69,11 +72,8 @@ class Seq2Seq(nn.Module):
 
         for i in range(self.max_dec_steps):
 
-            # embedding decoder input
-            dec_input = self.embedding(dec_input)
-
             # decoding
-            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(dec_input, dec_hidden, pre_dec_hiddens, enc_outputs, enc_temporal_score, extend_vocab, extra_zero)
+            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(dec_input, dec_hidden, pre_dec_hiddens, enc_outputs, enc_temporal_score, extend_vocab, oov_extra_zero)
 
             # output
             if greedy_search:
@@ -108,9 +108,11 @@ class Seq2Seq(nn.Module):
         
     '''
     def decode(self, dec_input, dec_hidden, pre_dec_hiddens, enc_hiddens, enc_temporal_score, extend_vocab, extra_zero, log_prob=True):
+        # embedding decoder input
+        dec_input = self.embedding(dec_input)
 
         # current decoder hidden
-        dec_hidden, _ = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :])  # B, 2H
+        dec_hidden = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :])  # B, 2H
 
         # intra-encoder attention
 
