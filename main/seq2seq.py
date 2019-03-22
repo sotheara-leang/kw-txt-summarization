@@ -55,7 +55,7 @@ class Seq2Seq(nn.Module):
         # initial decoder input = START_DECODING
         dec_input = t.tensor([self.vocab.word2id(START_DECODING)] * x.size(0))
 
-        # initial decoder hidden
+        # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
 
         # initial summation of temporal_score
@@ -70,7 +70,13 @@ class Seq2Seq(nn.Module):
         # decoding probabilities
         y_prob = []
 
-        for i in range(self.max_dec_steps):
+        # decoding length
+        if target_y is None:
+            decode_len = self.max_dec_steps
+        else:
+            decode_len = target_y.size(0)
+
+        for i in range(decode_len):
 
             # decoding
             vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(dec_input, dec_hidden, pre_dec_hiddens, enc_outputs, enc_temporal_score, extend_vocab, oov_extra_zero)
@@ -85,13 +91,9 @@ class Seq2Seq(nn.Module):
             y.append(dec_output)
             y_prob.append(dec_output)
 
-            # stop when reaching STOP_DECODING
-            if dec_output == self.vocab.word2id(STOP_DECODING):
-                break
-
             # define next input
             if teacher_forcing:
-                use_ground_truth = (t.rand(len(x)) > self.tf).long()
+                use_ground_truth = (t.rand(len(x)) > self.tf_rate).long()
                 dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output
             else:
                 dec_input = dec_output
@@ -102,7 +104,7 @@ class Seq2Seq(nn.Module):
             else:
                 pre_dec_hiddens = t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
-        return t.tensor(y), t.tensor(y_prob)
+        return y, y_prob
 
     '''
         
@@ -123,15 +125,15 @@ class Seq2Seq(nn.Module):
 
         # intra-decoder attention
 
-        dec_ctx_vector = self.dec_att(dec_hidden, None if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :])  # B, 2*H
+        dec_ctx_vector = self.dec_att(dec_hidden, pre_dec_hiddens)  # B, 2*H
 
         # vocab distribution
 
-        vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, V
+        vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)), dim=1)  # B, V
 
         # pointer-generator
 
-        p_gen = f.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, 1
+        p_gen = t.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, 1
 
         # final vocab distribution
 
@@ -145,6 +147,6 @@ class Seq2Seq(nn.Module):
         vocab_dist = vocab_dist.scatter_add(1, extend_vocab, p_dist)  # B, V + OOV
 
         if log_prob:
-            vocab_dist = t.log(vocab_dist, 1e-31)
+            vocab_dist = t.log(vocab_dist + 1e-31)
 
         return vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score

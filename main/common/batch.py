@@ -4,11 +4,12 @@ from main.common.vocab import *
 
 class Batch(object):
 
-    def __init__(self, articles, articles_len, summaries, summaries_len, oovs):
+    def __init__(self, articles, articles_len, summaries, summaries_len, extend_vocab_articles, oovs):
         self.articles = articles
         self.articles_len = articles_len
         self.summaries = summaries
         self.summaries_len = summaries_len
+        self.extend_vocab_articles = extend_vocab_articles
         self.oovs = oovs
 
         self.max_ovv_len = max([len(ovv) for ovv in oovs])
@@ -34,6 +35,7 @@ class BatchInitializer(object):
         max_summary_len = max(summaries_len)
 
         enc_articles = []
+        enc_extend_vocab_articles = []
         enc_summaries = []
         oovs = []
 
@@ -43,12 +45,18 @@ class BatchInitializer(object):
             if len(art_words) > self.max_enc_steps:  # truncate
                 art_words = art_words[:self.max_enc_steps]
 
-            enc_article, article_oovs = article2ids(art_words, self.vocab)
+            enc_article = [self.vocab.word2id(w) for w in art_words]
+
+            enc_extend_vocab_article, article_oovs = article2ids(art_words, self.vocab)
 
             while len(enc_article) < max_article_len:
                 enc_article.append(pad_token_id)
 
+            while len(enc_extend_vocab_article) < max_article_len:
+                enc_extend_vocab_article.append(0)
+
             enc_articles.append(enc_article)
+            enc_extend_vocab_articles.append(enc_extend_vocab_article)
             oovs.append(article_oovs)
 
         # summary
@@ -67,6 +75,8 @@ class BatchInitializer(object):
         enc_articles = t.tensor(enc_articles)
         articles_len = t.tensor(articles_len)
 
+        enc_extend_vocab_articles = t.tensor(enc_extend_vocab_articles)
+
         enc_summaries = t.tensor(enc_summaries)
         summaries_len = t.tensor(summaries_len)
 
@@ -74,4 +84,4 @@ class BatchInitializer(object):
         articles_len, indices = articles_len.sort(0, descending=True)
         enc_articles = enc_articles[indices]
 
-        return Batch(enc_articles, articles_len, enc_summaries, summaries_len, oovs)
+        return Batch(enc_articles, articles_len, enc_summaries, summaries_len, enc_extend_vocab_articles, oovs)

@@ -25,7 +25,12 @@ class Training(object):
         self.criterion = nn.NLLLoss(ignore_index=self.vocab.word2id(PAD_TOKEN))
 
     def train_batch(self, batch):
-        y, y_prob = self.seq2seq(batch.articles, batch.articles_len, batch.summaries, batch.oovs, batch.oov_extra_zero, True)
+        y, y_prob = self.seq2seq(batch.articles,
+                                 batch.articles_len,
+                                 batch.summaries,
+                                 batch.extend_vocab_articles,
+                                 batch.oov_extra_zero,
+                                 True)
 
     def train_ml(self, batch):
         pass
