@@ -13,7 +13,17 @@ class Configuration:
             self.cfg = yaml.load(file, Loader=Loader)
 
     def get(self, key):
-        return self.cfg[key]
+        keys = key.split(':')
+        if len(keys) > 1:
+            return self.__get_nest_value(self.cfg[keys[0]], keys[1:])
+        else:
+            return self.cfg[key]
 
     def set(self, key, value):
         self.cfg.__setitem__(key, value)
+
+    def __get_nest_value(self, map_, keys):
+        if len(keys) > 1:
+            return self.__getNestedValue(map_[keys[0]], keys[1:])
+        else:
+            return map_[keys[0]]

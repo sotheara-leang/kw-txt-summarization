@@ -18,7 +18,7 @@ class Seq2Seq(nn.Module):
         self.emb_size       = conf.get('emb-size')
         self.hidden_size    = conf.get('hidden-size')
         self.max_dec_steps  = conf.get('max-dec-steps')
-        self.tf_rate        = conf.get('training')['tf']    # teacher forcing rate
+        self.tf_rate        = conf.get('train:tf')    # teacher forcing rate
 
         self.vocab = vocab
 
@@ -104,7 +104,7 @@ class Seq2Seq(nn.Module):
             else:
                 dec_input = dec_output
 
-            #
+            # if next input is oov, change it to UNKNOWN_TOKEN
             is_oov = (dec_input >= self.vocab.size()).long()
             dec_input = (1 - is_oov) * dec_input + is_oov * self.vocab.word2id(UNKNOWN_TOKEN)
 
@@ -152,13 +152,14 @@ class Seq2Seq(nn.Module):
         vocab_dist = (1 - ptr_gen) * vocab_dist  # B, V
 
         # final vocab distribution
-        extend_vocab_dist = t.zeros(len(dec_input), self.vocab.size() + max_ovv_len)     # B, V + OOV
+
+        final_vocab_dist = t.zeros(len(dec_input), self.vocab.size() + max_ovv_len)     # B, V + OOV
         #
-        extend_vocab_dist[:, :self.vocab.size()] = vocab_dist
+        final_vocab_dist[:, :self.vocab.size()] = vocab_dist
         #
-        extend_vocab_dist.scatter_add(1, extend_vocab, ptr_dist)
+        final_vocab_dist.scatter_add(1, extend_vocab, ptr_dist)
 
         if log_prob:
-            extend_vocab_dist = t.log(extend_vocab_dist + 1e-31)
+            final_vocab_dist = t.log(final_vocab_dist + 1e-31)
 
-        return extend_vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
+        return final_vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
