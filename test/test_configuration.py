@@ -6,7 +6,7 @@ class TestConfiguration(TestCase):
 
     def test(self):
         conf = Configuration()
-        print(conf.get('training'))
+        print(conf.get('train:vocab-file'))
 
 
 
