@@ -28,8 +28,8 @@ class Training(object):
         y, y_prob = self.seq2seq(batch.articles,
                                  batch.articles_len,
                                  batch.summaries,
-                                 batch.extend_vocab_articles,
-                                 batch.oov_extra_zero,
+                                 batch.extend_vocab,
+                                 batch.max_ovv_len,
                                  True)
 
     def train_ml(self, batch):

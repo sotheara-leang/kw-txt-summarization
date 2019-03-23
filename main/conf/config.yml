@@ -4,7 +4,6 @@ hidden-size: 5 # 200
 max-enc-steps: 1000
 max-dec-steps: 100
 vocab-file: main/resource/vocab.txt
-emb-max-oov: 100
 
 mode: train
 

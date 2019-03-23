@@ -4,17 +4,15 @@ from main.common.vocab import *
 
 class Batch(object):
 
-    def __init__(self, articles, articles_len, summaries, summaries_len, extend_vocab_articles, oovs):
+    def __init__(self, articles, articles_len, summaries, summaries_len, extend_vocab, oovs):
         self.articles = articles
         self.articles_len = articles_len
         self.summaries = summaries
         self.summaries_len = summaries_len
-        self.extend_vocab_articles = extend_vocab_articles
+        self.extend_vocab = extend_vocab
+
         self.oovs = oovs
-
         self.max_ovv_len = max([len(ovv) for ovv in oovs])
-
-        self.oov_extra_zero = t.zeros(self.articles.size(0), self.max_ovv_len)
 
 
 class BatchInitializer(object):

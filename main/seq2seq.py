@@ -22,7 +22,7 @@ class Seq2Seq(nn.Module):
 
         self.vocab = vocab
 
-        self.embedding = nn.Embedding(self.vocab.size() + conf.get('emb-max-oov'), self.emb_size)
+        self.embedding = nn.Embedding(self.vocab.size(), self.emb_size)
 
         self.encoder = Encoder()
         self.decoder = Decoder()
@@ -35,17 +35,19 @@ class Seq2Seq(nn.Module):
         self.p_gen = nn.Linear(6 * self.hidden_size, 1)
 
     '''
-        :param
-            x           : B, L, E
-            seq_len     : L
-            target_y    :
-            extend_vocab:
+        :params
+            x               : B, L
+            seq_len         : L
+            target_y        : B, L
+            extend_vocab    : C
+            teacher_forcing
+            greedy_search
             
-        :return
+        :returns
             y
             y_prob
     '''
-    def forward(self, x, seq_len, target_y, extend_vocab, oov_extra_zero, teacher_forcing=False, greedy_search=True):
+    def forward(self, x, seq_len, target_y, extend_vocab, max_ovv_len, teacher_forcing=False, greedy_search=True):
         # embedding input
         x = self.embedding(x)
 
@@ -65,51 +67,60 @@ class Seq2Seq(nn.Module):
         pre_dec_hiddens = None   # B, T, 2H
 
         # decoding outputs
-        y = []
+        y = None
 
         # decoding probabilities
-        y_prob = []
+        y_prob = None
 
         # decoding length
         if target_y is None:
             decode_len = self.max_dec_steps
         else:
-            decode_len = target_y.size(0)
+            decode_len = target_y.size(1)
 
         for i in range(decode_len):
 
             # decoding
-            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(dec_input, dec_hidden, pre_dec_hiddens, enc_outputs, enc_temporal_score, extend_vocab, oov_extra_zero)
+            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(dec_input, dec_hidden, pre_dec_hiddens, enc_outputs, enc_temporal_score, extend_vocab, max_ovv_len)
 
             # output
             if greedy_search:
                 _, dec_output = t.max(vocab_dist, dim=1)   # B, 1
             else:
                 # sampling
-                dec_output = t.multinomial(vocab_dist, 1).squeeze()
+                dec_output = t.multinomial(vocab_dist, 1).squeeze()     # B
 
-            y.append(dec_output)
-            y_prob.append(dec_output)
+            # update output
+            y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)    # B
+            y_prob = vocab_dist.unsqueeze(1) if y_prob is None else t.cat([y_prob, vocab_dist.unsqueeze(1)], dim=1) #B
+
+            # update previous decoder hidden states
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
             # define next input
             if teacher_forcing:
-                use_ground_truth = (t.rand(len(x)) > self.tf_rate).long()
+                use_ground_truth = (t.rand(len(x)) > self.tf_rate).long()  # B
                 dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output
             else:
                 dec_input = dec_output
 
-            # update previous decoder hidden states
-            if pre_dec_hiddens is None:
-                pre_dec_hiddens = dec_hidden.unsqueeze(1)
-            else:
-                pre_dec_hiddens = t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+            #
+            is_oov = (dec_input >= self.vocab.size()).long()
+            dec_input = (1 - is_oov) * dec_input + is_oov * self.vocab.word2id(UNKNOWN_TOKEN)
 
         return y, y_prob
 
     '''
-        
+        :params
+            dec_input           :  B
+            dec_hidden
+            pre_dec_hiddens
+            enc_hiddens
+            
+        :returns
+            
     '''
-    def decode(self, dec_input, dec_hidden, pre_dec_hiddens, enc_hiddens, enc_temporal_score, extend_vocab, extra_zero, log_prob=True):
+    def decode(self, dec_input, dec_hidden, pre_dec_hiddens, enc_hiddens, enc_temporal_score, extend_vocab, max_ovv_len, log_prob=True):
         # embedding decoder input
         dec_input = self.embedding(dec_input)
 
@@ -125,28 +136,29 @@ class Seq2Seq(nn.Module):
 
         # intra-decoder attention
 
-        dec_ctx_vector = self.dec_att(dec_hidden, pre_dec_hiddens)  # B, 2*H
+        dec_ctx_vector = self.dec_att(dec_hidden, pre_dec_hiddens)  # B, 2H
+
+        # pointer-generator
+
+        ptr_gen = t.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, 1
+
+        # pointer distribution
+
+        ptr_dist = ptr_gen * enc_att  # B, L
 
         # vocab distribution
 
         vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)), dim=1)  # B, V
-
-        # pointer-generator
-
-        p_gen = t.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, 1
+        vocab_dist = (1 - ptr_gen) * vocab_dist  # B, V
 
         # final vocab distribution
-
-        vocab_dist = (1 - p_gen) * vocab_dist  # B, V
-
-        if extra_zero is not None:
-            vocab_dist = t.cat([vocab_dist, extra_zero], dim=1)  # B, V + OOV
-
-        p_dist = p_gen * enc_att  # B, L
-
-        vocab_dist = vocab_dist.scatter_add(1, extend_vocab, p_dist)  # B, V + OOV
+        extend_vocab_dist = t.zeros(len(dec_input), self.vocab.size() + max_ovv_len)     # B, V + OOV
+        #
+        extend_vocab_dist[:, :self.vocab.size()] = vocab_dist
+        #
+        extend_vocab_dist.scatter_add(1, extend_vocab, ptr_dist)
 
         if log_prob:
-            vocab_dist = t.log(vocab_dist + 1e-31)
+            extend_vocab_dist = t.log(extend_vocab_dist + 1e-31)
 
-        return vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
+        return extend_vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
