@@ -3,20 +3,12 @@ from main.common.vocab import *
 
 class DataLoader(object):
 
-    def __init__(self, article_file, summary_file, batch_size):
-        self.article_file = article_file
-        self.summary_file = summary_file
+    def __init__(self, batch_size):
         self.batch_size = batch_size
+        self.generator = self.reader()
 
-        self.generator = self.sample_generator()
-
-    def sample_generator(self):
-        with open(self.article_file, 'r') as art_reader, open(self.summary_file, 'r') as sum_reader:
-            while True:
-                article = next(art_reader)
-                summary = next(sum_reader)
-
-                yield (article, summary)
+    def reader(self):
+        pass
 
     def next(self):
         samples = []
@@ -34,8 +26,5 @@ class DataLoader(object):
         return samples
 
     def reset(self):
-        logger.debug('reset data loader')
-
-        self.generator = self.sample_generator()
-
+        self.generator = self.generator()
 

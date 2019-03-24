@@ -6,8 +6,6 @@ max-dec-steps: 100
 
 vocab-file: main/resource/vocab.txt
 
-mode: train
-
 train:
   tf: 0.25
   lr: 0.0001

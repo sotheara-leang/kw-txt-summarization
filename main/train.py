@@ -1,6 +1,7 @@
-import torch as t
 import torch.nn as nn
-from main.common.dataloader import *
+from rouge import Rouge
+
+from main.data.giga import *
 from main.seq2seq import Seq2Seq
 from main.common.batch import *
 
@@ -16,31 +17,33 @@ class Train(object):
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
-        self.dataloader = DataLoader(FileUtil.get_file_path(conf.get('train:article-file')), FileUtil.get_file_path(conf.get('train:summary-file')), conf.get('train:batch-size'))
+        self.dataloader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')), FileUtil.get_file_path(conf.get('train:summary-file')), conf.get('train:batch-size'))
 
         #
         self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=conf.get('train:lr'))
 
         self.criterion = nn.CrossEntropyLoss(ignore_index=0)
 
+        #
+        self.rouge = Rouge()
+
     def train_batch(self, batch):
-        y, y_prob = self.seq2seq(batch.articles,
-                                 batch.articles_len,
-                                 batch.summaries,
-                                 batch.extend_vocab,
-                                 batch.max_ovv_len,
-                                 True)
+        # ML
+        output = self.seq2seq(
+            batch.articles,
+            batch.articles_len,
+            batch.summaries, batch.extend_vocab, batch.max_ovv_len, criterion=self.criterion, teacher_forcing=True)
 
-        ml_loss = []
-        for idx, output in enumerate(y_prob):
-            e_loss = self.criterion(output, batch.summaries[idx])
-            ml_loss.append(e_loss)
+        # RL
+        sample_output = self.seq2seq(
+            batch.articles,
+            batch.articles_len,
+            batch.summaries, batch.extend_vocab, batch.max_ovv_len, criterion=self.criterion, greedy_search=False)
 
-    def train_ml(self, batch):
-        pass
-
-    def train_rl(self, batch):
-        pass
+        baseline_output = self.seq2seq(
+            batch.articles,
+            batch.articles_len,
+            batch.summaries, batch.extend_vocab, batch.max_ovv_len, criterion=self.criterion)
 
     def run(self):
         for i in range(self.epoch):

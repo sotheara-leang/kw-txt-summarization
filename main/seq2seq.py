@@ -2,7 +2,6 @@ import torch as t
 import torch.nn as nn
 import torch.nn.functional as f
 
-from main.common.common import *
 from main.encoder import Encoder
 from main.decoder import Decoder
 from main.encoder_attention import EncoderAttention
@@ -45,9 +44,16 @@ class Seq2Seq(nn.Module):
             
         :returns
             y
-            y_prob
     '''
-    def forward(self, x, seq_len, target_y, extend_vocab, max_ovv_len, teacher_forcing=False, greedy_search=True):
+    def forward(self, x,
+                seq_len,
+                target_y,
+                extend_vocab,
+                max_ovv_len,
+                criterion=None,
+                teacher_forcing=False,
+                greedy_search=True):
+
         # embedding input
         x = self.embedding(x)
 
@@ -60,41 +66,49 @@ class Seq2Seq(nn.Module):
         # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
 
-        # initial summation of temporal_score
+        #
         enc_temporal_score = None
 
-        # previous decoder hidden states
+        #
         pre_dec_hiddens = None   # B, T, 2H
 
-        # decoding outputs
-        y = None
+        # output
+        y = None    # B, L
 
-        # decoding probabilities
-        y_prob = None
+        # loss
+        loss = 0
 
-        # decoding length
-        if target_y is None:
-            decode_len = self.max_dec_steps
-        else:
-            decode_len = target_y.size(1)
+        #
+        decode_len = self.max_dec_steps if target_y is None else target_y.size(1)
 
         for i in range(decode_len):
 
             # decoding
-            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(dec_input, dec_hidden, pre_dec_hiddens, enc_outputs, enc_temporal_score, extend_vocab, max_ovv_len)
+            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(
+                dec_input,
+                dec_hidden,
+                pre_dec_hiddens,
+                enc_outputs,
+                enc_temporal_score,
+                extend_vocab,
+                max_ovv_len)
 
-            # output
+            # define output
             if greedy_search:
                 _, dec_output = t.max(vocab_dist, dim=1)   # B, 1
             else:
                 # sampling
                 dec_output = t.multinomial(vocab_dist, 1).squeeze()     # B
 
-            # update output
+            # record output
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)    # B
-            y_prob = vocab_dist.unsqueeze(1) if y_prob is None else t.cat([y_prob, vocab_dist.unsqueeze(1)], dim=1) #B
 
-            # update previous decoder hidden states
+            # calculate loss
+            if criterion is not None:
+                step_loss = criterion(vocab_dist, target_y[:, i])
+                loss += step_loss
+
+            # record decoder hidden
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
             # define next input
@@ -108,7 +122,7 @@ class Seq2Seq(nn.Module):
             is_oov = (dec_input >= self.vocab.size()).long()
             dec_input = (1 - is_oov) * dec_input + is_oov * self.vocab.word2id(UNKNOWN_TOKEN)
 
-        return y, y_prob
+        return y, loss
 
     '''
         :params
@@ -120,11 +134,19 @@ class Seq2Seq(nn.Module):
         :returns
             
     '''
-    def decode(self, dec_input, dec_hidden, pre_dec_hiddens, enc_hiddens, enc_temporal_score, extend_vocab, max_ovv_len, log_prob=True):
-        # embedding decoder input
+    def decode(self, dec_input,
+               dec_hidden,
+               pre_dec_hiddens,
+               enc_hiddens,
+               enc_temporal_score,
+               extend_vocab,
+               max_ovv_len,
+               log_prob=False):
+
+        # embedding input
         dec_input = self.embedding(dec_input)
 
-        # current decoder hidden
+        # current hidden
         dec_hidden = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :])  # B, 2H
 
         # intra-encoder attention
