@@ -4,7 +4,7 @@ from main.common.vocab import *
 
 class Batch(object):
 
-    def __init__(self, articles, articles_len, summaries, summaries_len, extend_vocab, oovs):
+    def __init__(self, articles, articles_len, summaries, summaries_len, original_summaries, extend_vocab, oovs):
         self.articles = articles
         self.articles_len = articles_len
         self.summaries = summaries
@@ -14,6 +14,8 @@ class Batch(object):
         self.oovs = oovs
         self.max_ovv_len = max([len(ovv) for ovv in oovs])
 
+        self.original_summaries = original_summaries
+
 
 class BatchInitializer(object):
 
@@ -22,8 +24,6 @@ class BatchInitializer(object):
         self.max_enc_steps = max_enc_steps
 
     def init(self, samples):
-        pad_token_id = TK_PADDING.idx
-
         articles, summaries = list(zip(*samples))
 
         articles_len = [len(a.split()) for a in articles]
@@ -44,14 +44,10 @@ class BatchInitializer(object):
                 art_words = art_words[:self.max_enc_steps]
 
             enc_article = [self.vocab.word2id(w) for w in art_words]
+            enc_article += [TK_PADDING.idx] * (max_article_len - len(enc_article))
 
             enc_extend_vocab_article, article_oovs = article2ids(art_words, self.vocab)
-
-            while len(enc_article) < max_article_len:
-                enc_article.append(pad_token_id)
-
-            while len(enc_extend_vocab_article) < max_article_len:
-                enc_extend_vocab_article.append(0)
+            enc_extend_vocab_article += [TK_PADDING.idx] * (max_article_len - len(enc_extend_vocab_article))
 
             enc_articles.append(enc_article)
             enc_extend_vocab_articles.append(enc_extend_vocab_article)
@@ -64,8 +60,7 @@ class BatchInitializer(object):
                 summary_words = summary_words[:self.max_enc_steps]
 
             enc_summary = summary2ids(summary_words, self.vocab, oovs) + [TK_STOP_DECODING.idx]
-            while len(enc_summary) < max_summary_len:
-                enc_summary.append(pad_token_id)
+            enc_summary += [TK_PADDING.idx] * (max_summary_len - len(enc_summary))
 
             enc_summaries.append(enc_summary)
 
@@ -82,4 +77,12 @@ class BatchInitializer(object):
         articles_len, indices = articles_len.sort(0, descending=True)
         enc_articles = enc_articles[indices]
 
-        return Batch(enc_articles, articles_len, enc_summaries, summaries_len, enc_extend_vocab_articles, oovs)
+        return Batch(enc_articles,
+                     articles_len,
+                     enc_summaries,
+                     summaries_len,
+                     summaries,
+                     enc_extend_vocab_articles,
+                     oovs)
+
+

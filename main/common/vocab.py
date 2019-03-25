@@ -98,14 +98,14 @@ def article2ids(article_words, vocab):
     return ids, oovs
 
 
-def summary2ids(summary_words, vocab, article_oovs):
+def summary2ids(summary_words, vocab, oovs):
     ids = []
     unk_id = TK_UNKNOWN.idx
     for w in summary_words:
         i = vocab.word2id(w)
         if i == unk_id:  # If w is an OOV word
-            if w in article_oovs:  # If w is an in-article OOV
-                vocab_idx = vocab.size() + article_oovs.index(w)  # Map to its temporary article OOV number
+            if w in oovs:  # If w is an in-article OOV
+                vocab_idx = vocab.size() + oovs.index(w)  # Map to its temporary article OOV number
                 ids.append(vocab_idx)
             else:  # If w is an out-of-article OOV
                 ids.append(unk_id)  # Map to the UNK token id
@@ -114,44 +114,52 @@ def summary2ids(summary_words, vocab, article_oovs):
     return ids
 
 
-def outputids2words(id_list, vocab, article_oovs):
+def output_ids2words(ids, vocab, oovs):
     words = []
-    for i in id_list:
+    for i in ids:
         try:
             w = vocab.id2word(i)  # might be [UNK]
         except ValueError as e:  # w is OOV
-            assert article_oovs is not None, "Error: model produced a word ID that isn't in the vocabulary. This should not happen in baseline (no pointer-generator) mode"
+            assert oovs is not None, "Error: model produced a word ID that isn't in the vocabulary. This should not happen in baseline (no pointer-generator) mode"
             article_oov_idx = i - vocab.size()
             try:
-                w = article_oovs[article_oov_idx]
+                w = oovs[article_oov_idx]
             except ValueError as e:  # i doesn't correspond to an article oov
-                raise ValueError('Error: model produced word ID %i which corresponds to article OOV %i but this example only has %i article OOVs' % (i, article_oov_idx, len(article_oovs)))
+                raise ValueError('Error: model produced word ID %i which corresponds to article OOV %i but this example only has %i article OOVs' % (i, article_oov_idx, len(oovs)))
         words.append(w)
     return words
 
 
+def batch_output_ids2words(ids, vocab, oovs):
+    batch = []
+    for id_list in ids:
+        output_words = output_ids2words(id_list, vocab, oovs)
+        batch.append(output_words)
+    return batch
+
+
 def show_art_oovs(article, vocab):
-    unk_token = TK_UNKNOWN.idx
     words = article.split(' ')
-    words = [("__%s__" % w) if vocab.word2id(w) == unk_token else w for w in words]
+    words = [("__%s__" % w) if vocab.word2id(w) == TK_UNKNOWN.idx else w for w in words]
     out_str = ' '.join(words)
     return out_str
 
 
-def show_abs_oovs(abstract, vocab, article_oovs):
-    unk_token = TK_UNKNOWN.idx
-    words = abstract.split(' ')
+def show_abs_oovs(summary, vocab, oovs):
+    words = summary.split(' ')
     new_words = []
+
     for w in words:
-        if vocab.word2id(w) == unk_token:  # w is oov
-            if article_oovs is None:  # baseline mode
+        if vocab.word2id(w) == TK_UNKNOWN.idx:  # w is oov
+            if oovs is None:  # baseline mode
                 new_words.append("__%s__" % w)
             else:  # pointer-generator mode
-                if w in article_oovs:
+                if w in oovs:
                     new_words.append("__%s__" % w)
                 else:
                     new_words.append("!!__%s__!!" % w)
         else:  # w is in-vocab word
             new_words.append(w)
     out_str = ' '.join(new_words)
+
     return out_str

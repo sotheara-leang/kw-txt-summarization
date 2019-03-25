@@ -33,6 +33,8 @@ class Seq2Seq(nn.Module):
 
         self.p_gen = nn.Linear(6 * self.hidden_size, 1)
 
+        self.criterion = nn.CrossEntropyLoss(ignore_index=TK_PADDING.idx, reduction='none')
+
     '''
         :params
             x               : B, L
@@ -44,14 +46,14 @@ class Seq2Seq(nn.Module):
             
         :returns
             y               : B, L
-            loss            : C     - total losses
+            loss            : B
     '''
     def forward(self, x,
                 seq_len,
                 target_y,
                 extend_vocab,
                 max_ovv_len,
-                criterion=None,
+                calculate_loss=False,
                 teacher_forcing=False,
                 greedy_search=True):
 
@@ -77,7 +79,7 @@ class Seq2Seq(nn.Module):
         y = None    # B, L
 
         # total loss
-        loss = 0
+        loss = t.zeros(len(x))   # B
 
         #
         decode_len = self.max_dec_steps if target_y is None else target_y.size(1)
@@ -105,9 +107,9 @@ class Seq2Seq(nn.Module):
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)    # B
 
             # calculate loss
-            if criterion is not None:
-                step_loss = criterion(vocab_dist, target_y[:, i])
-                loss += step_loss
+            if calculate_loss:
+                step_loss = self.criterion(vocab_dist, target_y[:, i])
+                loss = loss + step_loss
 
             # record decoder hidden
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)

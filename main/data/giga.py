@@ -15,7 +15,7 @@ class GigaDataLoader(DataLoader):
                 article = next(art_reader)
                 summary = next(sum_reader)
 
-                yield (article, summary)
+                yield article, summary
 
 
 
