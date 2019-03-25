@@ -39,11 +39,12 @@ class Seq2Seq(nn.Module):
             seq_len         : L
             target_y        : B, L
             extend_vocab    : C
-            teacher_forcing
-            greedy_search
+            teacher_forcing : False
+            greedy_search   : True
             
         :returns
-            y
+            y               : B, L
+            loss            : C     - total losses
     '''
     def forward(self, x,
                 seq_len,
@@ -55,18 +56,18 @@ class Seq2Seq(nn.Module):
                 greedy_search=True):
 
         # embedding input
-        x = self.embedding(x)
+        x = self.embedding(x)   # B, L, E
 
         # encoding input
-        enc_outputs, (enc_hidden_n, _) = self.encoder(x, seq_len)
+        enc_outputs, (enc_hidden_n, _) = self.encoder(x, seq_len)   # B, L, 2H, B, 2H
 
         # initial decoder input = START_DECODING
-        dec_input = t.tensor([self.vocab.word2id(START_DECODING)] * x.size(0))
+        dec_input = t.tensor([TK_START_DECODING.idx] * x.size(0))  # B
 
         # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
 
-        #
+        # intra-encoder attention score from previous time step
         enc_temporal_score = None
 
         #
@@ -75,7 +76,7 @@ class Seq2Seq(nn.Module):
         # output
         y = None    # B, L
 
-        # loss
+        # total loss
         loss = 0
 
         #
@@ -93,12 +94,12 @@ class Seq2Seq(nn.Module):
                 extend_vocab,
                 max_ovv_len)
 
-            # define output
+            # define output from vocab distribution
             if greedy_search:
-                _, dec_output = t.max(vocab_dist, dim=1)   # B, 1
+                _, dec_output = t.max(vocab_dist, dim=1)   # B - word idx
             else:
                 # sampling
-                dec_output = t.multinomial(vocab_dist, 1).squeeze()     # B
+                dec_output = t.multinomial(vocab_dist, 1).squeeze()     # B - word idx
 
             # record output
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)    # B
@@ -114,25 +115,32 @@ class Seq2Seq(nn.Module):
             # define next input
             if teacher_forcing:
                 use_ground_truth = (t.rand(len(x)) > self.tf_rate).long()  # B
-                dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output
+                dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output     # B
             else:
                 dec_input = dec_output
 
             # if next input is oov, change it to UNKNOWN_TOKEN
             is_oov = (dec_input >= self.vocab.size()).long()
-            dec_input = (1 - is_oov) * dec_input + is_oov * self.vocab.word2id(UNKNOWN_TOKEN)
+            dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN.idx
 
         return y, loss
 
     '''
         :params
-            dec_input           :  B
-            dec_hidden
-            pre_dec_hiddens
-            enc_hiddens
+            dec_input           :   B
+            dec_hidden          :   B, 2H
+            pre_dec_hiddens     :   B, T, 2H
+            enc_hiddens         :   B, L, 2H
+            enc_temporal_score  :   C
+            extend_vocab        :
+            max_ovv_len         :   C
             
         :returns
-            
+            final_vocab_dist    :   B, V + OOV
+            dec_hidden          :   B, 2H
+            enc_ctx_vector      :   B, 2H
+            dec_ctx_vector      :   B, 2H
+            enc_temporal_score  :   C
     '''
     def decode(self, dec_input,
                dec_hidden,
@@ -140,11 +148,10 @@ class Seq2Seq(nn.Module):
                enc_hiddens,
                enc_temporal_score,
                extend_vocab,
-               max_ovv_len,
-               log_prob=False):
+               max_ovv_len):
 
         # embedding input
-        dec_input = self.embedding(dec_input)
+        dec_input = self.embedding(dec_input)   # B, E
 
         # current hidden
         dec_hidden = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :])  # B, 2H
@@ -180,8 +187,5 @@ class Seq2Seq(nn.Module):
         final_vocab_dist[:, :self.vocab.size()] = vocab_dist
         #
         final_vocab_dist.scatter_add(1, extend_vocab, ptr_dist)
-
-        if log_prob:
-            final_vocab_dist = t.log(final_vocab_dist + 1e-31)
 
         return final_vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score

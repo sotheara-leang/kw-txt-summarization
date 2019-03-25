@@ -5,13 +5,21 @@ import csv
 from main.common.common import *
 from main.common.util.file_util import FileUtil
 
-SENTENCE_START  = '<s>'
-SENTENCE_END    = '</s>'
 
-PAD_TOKEN       = '[PAD]'
-UNKNOWN_TOKEN   = '[UNK]'
-START_DECODING  = '[START]'
-STOP_DECODING   = '[STOP]'
+class Token(object):
+
+    def __init__(self, word, idx=-1):
+        self.word = word
+        self.idx = idx
+
+
+TK_START_SENTENCE   = Token('<s>')
+TK_END_SENTENCE     = Token('</s>')
+
+TK_PADDING          = Token('[PAD]',    0)
+TK_UNKNOWN          = Token('[UNK]',    1)
+TK_START_DECODING   = Token('[START]',  2)
+TK_STOP_DECODING    = Token('[STOP]',   3)
 
 
 class Vocab(object):
@@ -21,10 +29,10 @@ class Vocab(object):
         self._id_to_word = {}
         self._count = 0  # keeps track of total number of words in the Vocab
 
-        # [PAD], [UNK], [START] and [STOP] get the ids 0, 1, 2, 3.
-        for w in [PAD_TOKEN, UNKNOWN_TOKEN, START_DECODING, STOP_DECODING]:
-            self._word_to_id[w] = self._count
-            self._id_to_word[self._count] = w
+        # [PAD], [UNK], [START] and [STOP]
+        for token in [TK_PADDING, TK_UNKNOWN, TK_START_DECODING, TK_STOP_DECODING]:
+            self._word_to_id[token.idx] = self._count
+            self._id_to_word[self._count] = token.word
             self._count += 1
 
         # Read the vocab file
@@ -36,20 +44,20 @@ class Vocab(object):
                     logger.error('Warning: incorrectly formatted line in vocabulary file: %s\n' % line)
                     continue
 
-                w = pieces[0]
-                if w in [SENTENCE_START, SENTENCE_END, UNKNOWN_TOKEN, PAD_TOKEN, START_DECODING, STOP_DECODING]:
-                    raise Exception('<s>, </s>, [UNK], [PAD], [START] and [STOP] should not be in the vocab file, but %s is' % w)
+                token = pieces[0]
+                if token in [TK_PADDING.word, TK_UNKNOWN.word, TK_START_DECODING.word, TK_STOP_DECODING.word]:
+                    raise Exception('<s>, </s>, [UNK], [PAD], [START] and [STOP] should not be in the vocab file, but %s is' % token)
 
-                if w in self._word_to_id:
-                    raise Exception('Duplicated word in vocabulary file: %s' % w)
+                if token in self._word_to_id:
+                    raise Exception('Duplicated word in vocabulary file: %s' % token)
 
-                self._word_to_id[w] = self._count
-                self._id_to_word[self._count] = w
+                self._word_to_id[token] = self._count
+                self._id_to_word[self._count] = token
                 self._count += 1
 
     def word2id(self, word):
         if word not in self._word_to_id:
-            return self._word_to_id[UNKNOWN_TOKEN]
+            return TK_UNKNOWN.idx
         return self._word_to_id[word]
 
     def id2word(self, word_id):
@@ -66,13 +74,18 @@ class Vocab(object):
             fieldnames = ['word']
             writer = csv.DictWriter(f, delimiter="\t", fieldnames=fieldnames)
             for i in range(self.size()):
-                writer.writerow({"word": self._id_to_word[i]})
+                word = self._id_to_word[i]
+
+                if word in [TK_PADDING.word, TK_UNKNOWN.word, TK_START_DECODING.word, TK_STOP_DECODING.word]:
+                    continue
+
+                writer.writerow({"word": word})
 
 
 def article2ids(article_words, vocab):
     ids = []
     oovs = []
-    unk_id = vocab.word2id(UNKNOWN_TOKEN)
+    unk_id = TK_UNKNOWN.idx
     for w in article_words:
         i = vocab.word2id(w)
         if i == unk_id:  # If w is OOV
@@ -87,7 +100,7 @@ def article2ids(article_words, vocab):
 
 def summary2ids(summary_words, vocab, article_oovs):
     ids = []
-    unk_id = vocab.word2id(UNKNOWN_TOKEN)
+    unk_id = TK_UNKNOWN.idx
     for w in summary_words:
         i = vocab.word2id(w)
         if i == unk_id:  # If w is an OOV word
@@ -117,21 +130,8 @@ def outputids2words(id_list, vocab, article_oovs):
     return words
 
 
-def summary2sents(summary):
-    cur = 0
-    sents = []
-    while True:
-        try:
-            start_p = summary.index(SENTENCE_START, cur)
-            end_p = summary.index(SENTENCE_END, start_p + 1)
-            cur = end_p + len(SENTENCE_END)
-            sents.append(summary[start_p + len(SENTENCE_START):end_p])
-        except ValueError as e:  # no more sentences
-            return sents
-
-
 def show_art_oovs(article, vocab):
-    unk_token = vocab.word2id(UNKNOWN_TOKEN)
+    unk_token = TK_UNKNOWN.idx
     words = article.split(' ')
     words = [("__%s__" % w) if vocab.word2id(w) == unk_token else w for w in words]
     out_str = ' '.join(words)
@@ -139,7 +139,7 @@ def show_art_oovs(article, vocab):
 
 
 def show_abs_oovs(abstract, vocab, article_oovs):
-    unk_token = vocab.word2id(UNKNOWN_TOKEN)
+    unk_token = TK_UNKNOWN.idx
     words = abstract.split(' ')
     new_words = []
     for w in words:

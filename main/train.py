@@ -32,7 +32,7 @@ class Train(object):
         output = self.seq2seq(
             batch.articles,
             batch.articles_len,
-            batch.summaries, batch.extend_vocab, batch.max_ovv_len, criterion=self.criterion, teacher_forcing=True)
+            batch.summaries, batch.extend_vocab, batch.max_ovv_len, criterion=self.criterion, teacher_forcing=True, greedy_search=False)
 
         # RL
         sample_output = self.seq2seq(
@@ -43,7 +43,7 @@ class Train(object):
         baseline_output = self.seq2seq(
             batch.articles,
             batch.articles_len,
-            batch.summaries, batch.extend_vocab, batch.max_ovv_len, criterion=self.criterion)
+            batch.summaries, batch.extend_vocab, batch.max_ovv_len)
 
     def run(self):
         for i in range(self.epoch):

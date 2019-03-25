@@ -1,4 +1,3 @@
-import torch as t
 import torch.nn as nn
 
 from main.common.common import *
@@ -12,11 +11,11 @@ class Decoder(nn.Module):
         self.gru = nn.GRUCell(conf.get('emb-size'), 2 * conf.get('hidden-size'))
 
     '''
-        :param
+        :params
             y               : B, E
             pre_hidden      : B, 2H
         
-        :return
+        :returns
             hidden          : B, 2H
            
     '''

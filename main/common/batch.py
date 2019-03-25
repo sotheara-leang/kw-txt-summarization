@@ -22,7 +22,7 @@ class BatchInitializer(object):
         self.max_enc_steps = max_enc_steps
 
     def init(self, samples):
-        pad_token_id = self.vocab.word2id(PAD_TOKEN)
+        pad_token_id = TK_PADDING.idx
 
         articles, summaries = list(zip(*samples))
 
@@ -63,7 +63,7 @@ class BatchInitializer(object):
             if len(summary_words) > self.max_enc_steps:  # truncate
                 summary_words = summary_words[:self.max_enc_steps]
 
-            enc_summary = summary2ids(summary_words, self.vocab, oovs) + [self.vocab.word2id(STOP_DECODING)]
+            enc_summary = summary2ids(summary_words, self.vocab, oovs) + [TK_STOP_DECODING.idx]
             while len(enc_summary) < max_summary_len:
                 enc_summary.append(pad_token_id)
 

@@ -13,12 +13,12 @@ class EncoderAttention(nn.Module):
         self.attn = nn.Bilinear(2 * conf.get('hidden-size'), 2 * conf.get('hidden-size'), 1, False)
 
     '''
-        :param
+        :params
             dec_hidden   : B, 2H
             enc_hiddens  : B, L, 2H
             sum_score    : B, L
         
-        :return
+        :returns
             ctx_vector          : B, 2H
             att_dist            : B, L
             enc_temporal_score  : B, L

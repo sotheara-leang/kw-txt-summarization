@@ -13,11 +13,11 @@ class DecoderAttention(nn.Module):
         self.attn = nn.Bilinear(2 * conf.get('hidden-size'), 2 * conf.get('hidden-size'), 1, False)
 
     '''
-        :param
+        :params
             dec_hidden       : B, 2H
             pre_dec_hiddens  : B, T, 2H
             
-        :return
+        :returns
             ctx_vector   : B, 2*H
     '''
     def forward(self, dec_hidden, pre_dec_hiddens):
