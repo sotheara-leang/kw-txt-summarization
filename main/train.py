@@ -13,7 +13,7 @@ class Train(object):
 
         self.vocab = Vocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
-        self.seq2seq = Seq2Seq(self.vocab)
+        self.seq2seq = Seq2Seq(self.vocab).to(device)
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
@@ -28,23 +28,31 @@ class Train(object):
 
         self.optimizer.zero_grad()
 
+        #
+        articles = batch.articles.to(device)
+        articles_len = batch.articles_len.to(device)
+        summaries = batch.summaries.to(device)
+        extend_vocab = batch.extend_vocab.to(device)
+        max_ovv_len = batch.max_ovv_len.to(device)
+
         # ML
         output = self.seq2seq(
-            batch.articles,
-            batch.articles_len,
-            batch.summaries,
-            batch.extend_vocab, batch.max_ovv_len, calculate_loss=True, teacher_forcing=True, greedy_search=False)
+            articles,
+            articles_len,
+            summaries,
+            extend_vocab, max_ovv_len, calculate_loss=True, teacher_forcing=True, greedy_search=False)
 
         # RL
         sample_output = self.seq2seq(
-            batch.articles,
-            batch.articles_len,
-            batch.summaries, batch.extend_vocab, batch.max_ovv_len, calculate_loss=True, greedy_search=False)
+            articles,
+            articles_len,
+            summaries, batch.extend_vocab, max_ovv_len, calculate_loss=True, greedy_search=False)
 
-        baseline_output = self.seq2seq(
-            batch.articles,
-            batch.articles_len,
-            batch.summaries, batch.extend_vocab, batch.max_ovv_len)
+        with t.autograd.no_grad():
+            baseline_output = self.seq2seq(
+                articles,
+                articles_len,
+                summaries, batch.extend_vocab, max_ovv_len)
 
         # convert decoded output to string
 
@@ -88,8 +96,6 @@ class Train(object):
     def run(self):
         config_dump = conf.dump()
         logger.debug('configuration: \n' + config_dump.strip())
-
-        self.seq2seq.train()
 
         for i in range(self.epoch):
             logger.debug(' Epoch %i/%i', i + 1, self.epoch)

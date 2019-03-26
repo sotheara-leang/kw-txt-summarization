@@ -1,10 +1,9 @@
-import torch as t
 from main.common.vocab import *
 
 
 class Batch(object):
 
-    def __init__(self, articles, articles_len, summaries, summaries_len, original_summaries, extend_vocab, oovs):
+    def __init__(self, articles, articles_len, summaries, summaries_len, original_summaries, extend_vocab, oovs, max_ovv_len):
         self.articles = articles
         self.articles_len = articles_len
         self.summaries = summaries
@@ -12,7 +11,7 @@ class Batch(object):
         self.extend_vocab = extend_vocab
 
         self.oovs = oovs
-        self.max_ovv_len = max([len(ovv) for ovv in oovs])
+        self.max_ovv_len = max_ovv_len
 
         self.original_summaries = original_summaries
 
@@ -69,6 +68,7 @@ class BatchInitializer(object):
         articles_len = t.tensor(articles_len)
 
         enc_extend_vocab_articles = t.tensor(enc_extend_vocab_articles)
+        max_ovv_len = t.tensor(max([len(ovv) for ovv in oovs]))
 
         enc_summaries = t.tensor(enc_summaries)
         summaries_len = t.tensor(summaries_len)
@@ -83,6 +83,7 @@ class BatchInitializer(object):
                      summaries_len,
                      summaries,
                      enc_extend_vocab_articles,
+                     max_ovv_len,
                      oovs)
 
 
