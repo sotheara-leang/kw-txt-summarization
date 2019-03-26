@@ -81,9 +81,9 @@ class Train(object):
         # update model weight
         self.optimizer.step()
 
-        award = t.mean(sample_scores)
+        reward = t.mean(sample_scores)
 
-        return loss, ml_loss, rl_loss, award
+        return loss, ml_loss, rl_loss, reward
 
     def run(self):
         config_dump = conf.dump()
@@ -102,8 +102,6 @@ class Train(object):
             total_samples_award = 0
 
             while True:
-                logger.debug('Batch %i', batch_counter)
-
                 # get next batch
                 batch = self.dataloader.next()
 
@@ -128,9 +126,9 @@ class Train(object):
             loss_avg = total_loss / batch_counter
             ml_loss_avg = total_ml_loss / batch_counter
             rl_loss_avg = total_rl_loss / batch_counter
-            samples_award_avg = total_samples_award / batch_counter
+            samples_reward_avg = total_samples_award / batch_counter
 
-            logger.debug('Epoch %i/%i | loss=%.3f | ml-loss=%.3f | rl-loss=%.3f',  i + 1, self.epoch, loss_avg, ml_loss_avg, rl_loss_avg, samples_award_avg)
+            logger.debug('Epoch %i/%i | loss=%.3f | ml-loss=%.3f | rl-loss=%.3f | reward=%.3f',  i + 1, self.epoch, loss_avg, ml_loss_avg, rl_loss_avg, samples_reward_avg)
 
 
 if __name__ == "__main__":

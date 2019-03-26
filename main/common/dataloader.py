@@ -26,5 +26,5 @@ class DataLoader(object):
         return samples
 
     def reset(self):
-        self.generator = self.generator()
+        self.generator = self.reader()
 
