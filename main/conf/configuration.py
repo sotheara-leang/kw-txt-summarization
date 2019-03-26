@@ -1,7 +1,7 @@
 import yaml
 import os
 
-from yaml import Loader
+from yaml import Loader, Dumper
 from singleton_decorator import singleton
 
 
@@ -27,3 +27,9 @@ class Configuration:
             return self.__getNestedValue(map_[keys[0]], keys[1:])
         else:
             return map_[keys[0]]
+
+    def dump(self):
+        return yaml.dump(self.cfg, Dumper=Dumper)
+
+
+

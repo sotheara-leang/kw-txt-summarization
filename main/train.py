@@ -64,45 +64,72 @@ class Train(object):
         basline_scores = t.tensor([score["rouge-l"]["f"] for score in basline_scores])
 
         # ml loss
+
         ml_loss = t.sum(output[1]) / len(output[1])
 
         # rl loss
         rl_loss = -(sample_scores - basline_scores) * sample_output[1]
         rl_loss = t.sum(rl_loss) / len(rl_loss)
 
+        # total loss
         loss = self.rl_weight * rl_loss + (1 - self.rl_weight) * ml_loss
 
+        # do backward
         loss.backward()
 
+        # update model weight
         self.optimizer.step()
 
+        award = t.mean(sample_scores)
+
+        return loss, ml_loss, rl_loss, award
+
     def run(self):
-        with t.autograd.set_detect_anomaly(True):
+        config_dump = conf.dump()
+        logger.debug('configuration: \n' + config_dump.strip())
 
-            self.seq2seq.train()
+        self.seq2seq.train()
 
-            for i in range(self.epoch):
-                logger.debug('>>> Epoch %i/%i <<<', i+1, self.epoch)
+        for i in range(self.epoch):
+            logger.debug('>>> Epoch %i/%i <<<', i + 1, self.epoch)
 
-                batch_counter = 1
+            batch_counter = 1
 
-                while True:
-                    logger.debug('Batch %i', batch_counter)
+            total_loss = 0
+            total_ml_loss = 0
+            total_rl_loss = 0
+            total_samples_award = 0
 
-                    batch = self.dataloader.next()
+            while True:
+                logger.debug('Batch %i', batch_counter)
 
-                    if batch is None:
-                        break
+                # get next batch
+                batch = self.dataloader.next()
 
-                    batch = self.batch_initializer.init(batch)
+                if batch is None:
+                    break
 
-                    self.train_batch(batch)
+                # init batch
+                batch = self.batch_initializer.init(batch)
 
-                    return
+                # feed batch to model
+                loss, ml_loss, rl_loss, samples_award = self.train_batch(batch)
 
-                    batch_counter += 1
+                total_loss += loss
+                total_ml_loss += ml_loss
+                total_rl_loss += rl_loss
+                total_samples_award += samples_award
 
-                self.dataloader.reset()
+                batch_counter += 1
+            #
+            self.dataloader.reset()
+
+            loss_avg = total_loss / batch_counter
+            ml_loss_avg = total_ml_loss / batch_counter
+            rl_loss_avg = total_rl_loss / batch_counter
+            samples_award_avg = total_samples_award / batch_counter
+
+            logger.debug('Epoch %i/%i | loss=%.3f | ml-loss=%.3f | rl-loss=%.3f',  i + 1, self.epoch, loss_avg, ml_loss_avg, rl_loss_avg, samples_award_avg)
 
 
 if __name__ == "__main__":

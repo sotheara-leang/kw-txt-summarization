@@ -82,9 +82,9 @@ class Seq2Seq(nn.Module):
         loss = t.zeros(len(x))   # B
 
         #
-        decode_len = self.max_dec_steps if target_y is None else target_y.size(1)
+        dec_len = self.max_dec_steps if target_y is None else target_y.size(1)
 
-        for i in range(decode_len):
+        for i in range(dec_len):
 
             # decoding
             vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(
