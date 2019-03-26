@@ -3,13 +3,14 @@ import os
 
 from yaml import Loader, Dumper
 from singleton_decorator import singleton
+from main.common.util.file_util import FileUtil
 
 
 @singleton
 class Configuration:
 
     def __init__(self):
-        with open(os.path.join(os.path.dirname(__file__), "config.yml"), 'r') as file:
+        with open(FileUtil.get_file_path("main/conf/config.yml"), 'r') as file:
             self.cfg = yaml.load(file, Loader=Loader)
 
     def get(self, key):

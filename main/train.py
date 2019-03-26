@@ -3,6 +3,7 @@ from rouge import Rouge
 from main.data.giga import *
 from main.seq2seq import Seq2Seq
 from main.common.batch import *
+from main.common.util.file_util import FileUtil
 
 
 class Train(object):
@@ -10,7 +11,7 @@ class Train(object):
     def __init__(self):
         self.epoch = conf.get('train:epoch')
 
-        self.vocab = Vocab(conf.get('train:vocab-file'))
+        self.vocab = Vocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
         self.seq2seq = Seq2Seq(self.vocab)
 
