@@ -64,7 +64,7 @@ class Seq2Seq(nn.Module):
         enc_outputs, (enc_hidden_n, _) = self.encoder(x, seq_len)   # B, L, 2H, B, 2H
 
         # initial decoder input = START_DECODING
-        dec_input = t.tensor([TK_START_DECODING.idx] * x.size(0))  # B
+        dec_input = cuda(t.tensor([TK_START_DECODING.idx] * x.size(0)))  # B
 
         # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
@@ -79,7 +79,7 @@ class Seq2Seq(nn.Module):
         y = None    # B, L
 
         # total loss
-        loss = t.zeros(len(x))   # B
+        loss = cuda(t.zeros(len(x)))   # B
 
         #
         dec_len = self.max_dec_steps if target_y is None else target_y.size(1)
@@ -116,7 +116,7 @@ class Seq2Seq(nn.Module):
 
             # define next input
             if teacher_forcing:
-                use_ground_truth = (t.rand(len(x)) > self.tf_rate).long()  # B
+                use_ground_truth = (cuda(t.rand(len(x))) > self.tf_rate).long()  # B
                 dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output     # B
             else:
                 dec_input = dec_output
@@ -184,7 +184,7 @@ class Seq2Seq(nn.Module):
 
         # final vocab distribution
 
-        final_vocab_dist = t.zeros(len(dec_input), self.vocab.size() + max_ovv_len)     # B, V + OOV
+        final_vocab_dist = cuda(t.zeros(len(dec_input), self.vocab.size() + max_ovv_len))     # B, V + OOV
         #
         final_vocab_dist[:, :self.vocab.size()] = vocab_dist
         #

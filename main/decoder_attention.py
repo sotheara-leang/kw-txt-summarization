@@ -22,7 +22,7 @@ class DecoderAttention(nn.Module):
     '''
     def forward(self, dec_hidden, pre_dec_hiddens):
         if pre_dec_hiddens is None:
-            ctx_vector = t.zeros(dec_hidden.size())
+            ctx_vector = cuda(t.zeros(dec_hidden.size()))
         else:
             dec_hidden = dec_hidden.unsqueeze(1).expand(-1, pre_dec_hiddens.size(1), -1).contiguous() # B, T, 2H
 

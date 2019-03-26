@@ -11,5 +11,9 @@ logger = logging.getLogger('main')
 #
 conf = Configuration()
 
+
 #
-device = t.device('cuda' if t.cuda.is_available() else 'cpu')
+def cuda(tensor):
+    if t.cuda.is_available():
+        tensor = tensor.cuda()
+    return tensor
