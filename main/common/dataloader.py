@@ -1,5 +1,3 @@
-from main.common.vocab import *
-
 
 class DataLoader(object):
 
@@ -16,7 +14,6 @@ class DataLoader(object):
             try:
                 sample = next(self.generator)
             except StopIteration:
-                logger.debug('no more sample to read')
                 return None
 
             if sample is None:
