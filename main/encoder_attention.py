@@ -36,7 +36,7 @@ class EncoderAttention(nn.Module):
             enc_temporal_score = exp_score
         else:
             score = exp_score / enc_temporal_score
-            enc_temporal_score += exp_score
+            enc_temporal_score = enc_temporal_score + exp_score
 
         # normalization
 

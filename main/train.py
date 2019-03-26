@@ -1,4 +1,3 @@
-import torch.nn as nn
 from rouge import Rouge
 
 from main.data.giga import *
@@ -25,8 +24,6 @@ class Train(object):
 
     def train_batch(self, batch):
         rouge = Rouge()
-
-        self.seq2seq.train()
 
         self.optimizer.zero_grad()
 
@@ -80,28 +77,32 @@ class Train(object):
         self.optimizer.step()
 
     def run(self):
-        for i in range(self.epoch):
-            logger.debug('>>> Epoch %i/%i <<<', i+1, self.epoch)
+        with t.autograd.set_detect_anomaly(True):
 
-            batch_counter = 1
+            self.seq2seq.train()
 
-            while True:
-                logger.debug('Batch %i', batch_counter)
+            for i in range(self.epoch):
+                logger.debug('>>> Epoch %i/%i <<<', i+1, self.epoch)
 
-                batch = self.dataloader.next()
+                batch_counter = 1
 
-                if batch is None:
-                    break
+                while True:
+                    logger.debug('Batch %i', batch_counter)
 
-                batch = self.batch_initializer.init(batch)
+                    batch = self.dataloader.next()
 
-                self.train_batch(batch)
+                    if batch is None:
+                        break
 
-                return
+                    batch = self.batch_initializer.init(batch)
 
-                batch_counter += 1
+                    self.train_batch(batch)
 
-            self.dataloader.reset()
+                    return
+
+                    batch_counter += 1
+
+                self.dataloader.reset()
 
 
 if __name__ == "__main__":
