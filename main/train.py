@@ -60,10 +60,10 @@ class Train(object):
         # calculate rouge score
 
         sample_scores = rouge.get_scores(list(sample_summaries), list(reference_summaries))
-        sample_scores = t.tensor([score["rouge-l"]["f"] for score in sample_scores])
+        sample_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in sample_scores]))
 
         basline_scores = rouge.get_scores(list(baseline_summaries), list(reference_summaries))
-        basline_scores = t.tensor([score["rouge-l"]["f"] for score in basline_scores])
+        basline_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in basline_scores]))
 
         # ml loss
 
