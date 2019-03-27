@@ -4,9 +4,9 @@ import os
 class FileUtil:
 
     @staticmethod
-    def get_root_dir():
-        return os.path.dirname(os.path.abspath(''))
+    def get_proj_dir():
+        return os.environ['PROJ_HOME']
 
     @staticmethod
     def get_file_path(file: str):
-        return os.path.join(FileUtil.get_root_dir(), file)
+        return os.path.join(FileUtil.get_proj_dir(), file)

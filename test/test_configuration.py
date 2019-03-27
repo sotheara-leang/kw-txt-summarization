@@ -8,5 +8,3 @@ class TestConfiguration(TestCase):
         conf = Configuration()
         print(conf.get('train:vocab-file'))
 
-
-
