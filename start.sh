@@ -2,4 +2,4 @@
 
 source ./venv/bin/activate
 
-export PROJ_HOME='/home/vivien/PycharmProjects/txt-summarization'
+export PROJ_HOME=$(pwd)
