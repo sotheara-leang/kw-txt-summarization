@@ -18,7 +18,7 @@ class DecoderAttention(nn.Module):
             pre_dec_hiddens  : B, T, 2H
             
         :returns
-            ctx_vector   : B, 2*H
+            ctx_vector   : B, 2H
     '''
     def forward(self, dec_hidden, pre_dec_hiddens):
         if pre_dec_hiddens is None:

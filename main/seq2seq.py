@@ -21,7 +21,7 @@ class Seq2Seq(nn.Module):
 
         self.vocab = vocab
 
-        self.embedding = nn.Embedding(self.vocab.size(), self.emb_size)
+        self.embedding = nn.Embedding(self.vocab.size(), self.emb_size, padding_idx=TK_PADDING.idx)
 
         self.encoder = Encoder()
         self.decoder = Decoder()

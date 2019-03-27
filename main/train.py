@@ -33,7 +33,7 @@ class Train(object):
             batch.articles,
             batch.articles_len,
             batch.summaries,
-            batch.extend_vocab, batch.max_ovv_len, calculate_loss=True, teacher_forcing=True, greedy_search=False)
+            batch.extend_vocab, batch.max_ovv_len, calculate_loss=True, teacher_forcing=True, greedy_search=True)
 
         # RL
         sample_output = self.seq2seq(
@@ -70,7 +70,8 @@ class Train(object):
         ml_loss = t.sum(output[1]) / len(output[1])
 
         # rl loss
-        rl_loss = -(sample_scores - basline_scores) * sample_output[1]
+
+        rl_loss = -(basline_scores - sample_scores) * sample_output[1]
         rl_loss = t.sum(rl_loss) / len(rl_loss)
 
         # total loss
