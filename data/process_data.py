@@ -125,5 +125,5 @@ if __name__ == '__main__':
     elif args.opt == 'count':
         count_samples()
     else:
-        extract_samples(args.file)
+        extract_samples(args.file, args.sindex, args.eindex)
 

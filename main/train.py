@@ -91,7 +91,7 @@ class Train(object):
         logger.debug('configuration: \n' + config_dump.strip())
 
         for i in range(self.epoch):
-            logger.debug(' Epoch %i/%i', i + 1, self.epoch)
+            logger.debug('============ Epoch %i/%i ============', i + 1, self.epoch)
 
             batch_counter = 1
 
@@ -130,6 +130,13 @@ class Train(object):
             logger.debug('loss\t\t=\t%.3f',  loss_avg)
             logger.debug('ml-loss\t=\t%.3f', ml_loss_avg)
             logger.debug('rl-loss\t=\t%.3f,\t reward=%.3f', rl_loss_avg, samples_reward_avg)
+
+        # save model
+        model_path = FileUtil.get_file_path(conf.get('train:model-file'))
+
+        logger.debug('save model into : ' + model_path)
+
+        t.save(self.seq2seq.state_dict(), FileUtil.get_file_path(conf.get('train:model-file')))
 
 
 if __name__ == "__main__":

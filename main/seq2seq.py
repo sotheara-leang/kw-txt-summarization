@@ -116,7 +116,9 @@ class Seq2Seq(nn.Module):
 
             # define next input
             if teacher_forcing:
-                use_ground_truth = cuda(t.rand(len(x)) > self.tf_rate).long()  # B
+                use_ground_truth = t.rand(len(x)) > self.tf_rate  # B
+                use_ground_truth = cuda(use_ground_truth.long())
+
                 dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output     # B
             else:
                 dec_input = dec_output
