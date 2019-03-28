@@ -48,8 +48,7 @@ class Seq2Seq(nn.Module):
             y               : B, L
             loss            : B
     '''
-    def forward(self, x,
-                seq_len,
+    def forward(self, x, seq_len,
                 target_y,
                 extend_vocab,
                 max_ovv_len,
@@ -107,7 +106,7 @@ class Seq2Seq(nn.Module):
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)    # B
 
             # calculate loss
-            if calculate_loss:
+            if calculate_loss and target_y is not None:
                 step_loss = self.criterion(vocab_dist, target_y[:, i])
                 loss = loss + step_loss
 
@@ -115,7 +114,7 @@ class Seq2Seq(nn.Module):
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
             # define next input
-            if teacher_forcing:
+            if teacher_forcing and target_y is not None:
                 use_ground_truth = t.rand(len(x)) > self.tf_rate  # B
                 use_ground_truth = cuda(use_ground_truth.long())
 

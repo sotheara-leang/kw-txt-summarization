@@ -49,11 +49,15 @@ class Train(object):
 
         # convert decoded output to string
 
-        sample_summaries = batch_output_ids2words(sample_output[0].tolist(), self.vocab, batch.oovs)
-        sample_summaries = [' '.join(summary) for summary in sample_summaries]
+        sample_summaries = []
+        sample_outputs = sample_output[0].tolist()
+        for idx, summary in enumerate(sample_outputs):
+            sample_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
-        baseline_summaries = batch_output_ids2words(baseline_output[0].tolist(), self.vocab, batch.oovs)
-        baseline_summaries = [' '.join(summary) for summary in baseline_summaries]
+        baseline_summaries = []
+        baseline_outputs = baseline_output[0].tolist()
+        for idx, summary in enumerate(baseline_outputs):
+            baseline_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
         reference_summaries = batch.original_summaries
 
@@ -62,8 +66,8 @@ class Train(object):
         sample_scores = rouge.get_scores(list(sample_summaries), list(reference_summaries))
         sample_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in sample_scores]))
 
-        basline_scores = rouge.get_scores(list(baseline_summaries), list(reference_summaries))
-        basline_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in basline_scores]))
+        baseline_scores = rouge.get_scores(list(baseline_summaries), list(reference_summaries))
+        baseline_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in baseline_scores]))
 
         # ml loss
 
@@ -71,7 +75,7 @@ class Train(object):
 
         # rl loss
 
-        rl_loss = -(basline_scores - sample_scores) * sample_output[1]
+        rl_loss = -(baseline_scores - sample_scores) * sample_output[1]
         rl_loss = t.sum(rl_loss) / len(rl_loss)
 
         # total loss
