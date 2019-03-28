@@ -1,4 +1,3 @@
-import torch as t
 import torch.nn as nn
 import torch.nn.functional as f
 
@@ -32,8 +31,6 @@ class Seq2Seq(nn.Module):
         self.vocab_gen = nn.Linear(6 * self.hidden_size, self.vocab.size())
 
         self.p_gen = nn.Linear(6 * self.hidden_size, 1)
-
-        self.criterion = nn.CrossEntropyLoss(ignore_index=TK_PADDING.idx, reduction='none')
 
     '''
         :params
@@ -107,7 +104,7 @@ class Seq2Seq(nn.Module):
 
             # calculate loss
             if calculate_loss and target_y is not None:
-                step_loss = self.criterion(vocab_dist, target_y[:, i])
+                step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING.idx)
                 loss = loss + step_loss
 
             # record decoder hidden
