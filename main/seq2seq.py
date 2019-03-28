@@ -43,7 +43,7 @@ class Seq2Seq(nn.Module):
             
         :returns
             y               : B, L
-            loss            : B
+            loss            : B, L
     '''
     def forward(self, x, seq_len,
                 target_y,
@@ -75,7 +75,7 @@ class Seq2Seq(nn.Module):
         y = None    # B, L
 
         # total loss
-        loss = cuda(t.zeros(len(x)))   # B
+        loss = None   # B, L
 
         #
         dec_len = self.max_dec_steps if target_y is None else target_y.size(1)
@@ -100,12 +100,13 @@ class Seq2Seq(nn.Module):
                 dec_output = t.multinomial(vocab_dist, 1).squeeze()     # B - word idx
 
             # record output
-            y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)    # B
+            y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)    # B, L
 
             # calculate loss
             if calculate_loss and target_y is not None:
                 step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING.idx)
-                loss = loss + step_loss
+
+                loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)    # B, L
 
             # record decoder hidden
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
