@@ -53,6 +53,8 @@ class Seq2Seq(nn.Module):
                 teacher_forcing=False,
                 greedy_search=True):
 
+        batch_size = len(x)
+
         # embedding input
         x = self.embedding(x)   # B, L, E
 
@@ -60,7 +62,7 @@ class Seq2Seq(nn.Module):
         enc_outputs, (enc_hidden_n, _) = self.encoder(x, seq_len)   # B, L, 2H, B, 2H
 
         # initial decoder input = START_DECODING
-        dec_input = cuda(t.tensor([TK_START_DECODING.idx] * x.size(0)))  # B
+        dec_input = cuda(t.tensor([TK_START_DECODING.idx] * batch_size))  # B
 
         # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
@@ -79,6 +81,9 @@ class Seq2Seq(nn.Module):
 
         #
         dec_len = self.max_dec_steps if target_y is None else target_y.size(1)
+
+        # stop decoding mask
+        stop_dec_mask = t.zeros(batch_size)
 
         for i in range(dec_len):
 
@@ -106,14 +111,20 @@ class Seq2Seq(nn.Module):
             if calculate_loss and target_y is not None:
                 step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING.idx)
 
+                # set loss to 0 after TK_STOP_DECODING
+                step_loss[stop_dec_mask == 1] = 0
+
                 loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)    # B, L
+
+                # set mask = 1 If output is not [STOP] at previous time step and current output is [STOP]
+                stop_dec_mask[(stop_dec_mask == 0) + (dec_output == TK_STOP_DECODING.idx) == 2] = 1
 
             # record decoder hidden
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
             # define next input
             if teacher_forcing and target_y is not None:
-                use_ground_truth = t.rand(len(x)) > self.tf_rate  # B
+                use_ground_truth = t.rand(batch_size) > self.tf_rate  # B
                 use_ground_truth = cuda(use_ground_truth.long())
 
                 dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output     # B

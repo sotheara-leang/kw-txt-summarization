@@ -71,12 +71,12 @@ class Train(object):
 
         # ml loss
 
-        ml_loss = t.sum(output[1], dim=1) / batch.summaries_len.float()
+        ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
         ml_loss = t.mean(ml_loss)
 
         # rl loss
 
-        rl_loss = t.sum(sample_output[1], dim=1) / batch.summaries_len.float()
+        rl_loss = t.sum(sample_output[1], dim=1) / t.sum(sample_output[1] != 0, dim=1).float()
         rl_loss = (baseline_scores - sample_scores) * rl_loss
         rl_loss = t.mean(rl_loss)
 
