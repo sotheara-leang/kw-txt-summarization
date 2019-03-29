@@ -1,6 +1,4 @@
-import torch as t
 import torch.nn as nn
-import torch.nn.functional as f
 
 from main.common.common import *
 
@@ -14,9 +12,9 @@ class EncoderAttention(nn.Module):
 
     '''
         :params
-            dec_hidden   : B, 2H
-            enc_hiddens  : B, L, 2H
-            sum_score    : B, L
+            dec_hidden          : B, 2H
+            enc_hiddens         : B, L, 2H
+            enc_temporal_score  : B, L
         
         :returns
             ctx_vector          : B, 2H

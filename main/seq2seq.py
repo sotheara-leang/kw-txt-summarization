@@ -35,9 +35,10 @@ class Seq2Seq(nn.Module):
     '''
         :params
             x               : B, L
-            seq_len         : L
+            x_len           : L
             target_y        : B, L
-            extend_vocab    : C
+            extend_vocab    : B, V + OOV
+            max_ovv_len     : C
             teacher_forcing : False
             greedy_search   : True
             
@@ -45,7 +46,7 @@ class Seq2Seq(nn.Module):
             y               : B, L
             loss            : B, L
     '''
-    def forward(self, x, seq_len,
+    def forward(self, x, x_len,
                 target_y,
                 extend_vocab,
                 max_ovv_len,
@@ -59,7 +60,7 @@ class Seq2Seq(nn.Module):
         x = self.embedding(x)   # B, L, E
 
         # encoding input
-        enc_outputs, (enc_hidden_n, _) = self.encoder(x, seq_len)   # B, L, 2H, B, 2H
+        enc_outputs, (enc_hidden_n, _) = self.encoder(x, x_len)   # B, L, 2H, B, 2H
 
         # initial decoder input = START_DECODING
         dec_input = cuda(t.tensor([TK_START_DECODING.idx] * batch_size))  # B
@@ -143,8 +144,8 @@ class Seq2Seq(nn.Module):
             dec_hidden          :   B, 2H
             pre_dec_hiddens     :   B, T, 2H
             enc_hiddens         :   B, L, 2H
-            enc_temporal_score  :   C
-            extend_vocab        :
+            enc_temporal_score  :   B, L
+            extend_vocab        :   B, V + OOV
             max_ovv_len         :   C
             
         :returns
@@ -152,7 +153,7 @@ class Seq2Seq(nn.Module):
             dec_hidden          :   B, 2H
             enc_ctx_vector      :   B, 2H
             dec_ctx_vector      :   B, 2H
-            enc_temporal_score  :   C
+            enc_temporal_score  :   B, L
     '''
     def decode(self, dec_input,
                dec_hidden,

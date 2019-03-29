@@ -14,11 +14,11 @@ class DecoderAttention(nn.Module):
 
     '''
         :params
-            dec_hidden       : B, 2H
-            pre_dec_hiddens  : B, T, 2H
+            dec_hidden          : B, 2H
+            pre_dec_hiddens     : B, T, 2H
             
         :returns
-            ctx_vector   : B, 2H
+            ctx_vector          : B, 2H
     '''
     def forward(self, dec_hidden, pre_dec_hiddens):
         if pre_dec_hiddens is None:
