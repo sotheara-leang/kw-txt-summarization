@@ -42,10 +42,10 @@ class BatchInitializer(object):
             if len(art_words) > self.max_enc_steps:  # truncate
                 art_words = art_words[:self.max_enc_steps]
 
-            enc_article = [self.vocab.word2id(w) for w in art_words]
+            enc_article = self.vocab.words2ids(art_words)
             enc_article += [TK_PADDING.idx] * (max_article_len - len(enc_article))
 
-            enc_extend_vocab_article, article_oovs = self.vocab.words2ids(art_words)
+            enc_extend_vocab_article, article_oovs = self.vocab.extend_words2ids(art_words)
             enc_extend_vocab_article += [TK_PADDING.idx] * (max_article_len - len(enc_extend_vocab_article))
 
             enc_articles.append(enc_article)
@@ -58,7 +58,7 @@ class BatchInitializer(object):
             if len(summary_words) > self.max_enc_steps:  # truncate
                 summary_words = summary_words[:self.max_enc_steps]
 
-            enc_summary, _ = self.vocab.words2ids(summary_words, oovs)
+            enc_summary, _ = self.vocab.extend_words2ids(summary_words, oovs)
             enc_summary = enc_summary + [TK_STOP_DECODING.idx]
             enc_summary += [TK_PADDING.idx] * (max_summary_len - len(enc_summary))
 

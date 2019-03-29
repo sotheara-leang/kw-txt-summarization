@@ -46,8 +46,8 @@ class Seq2Seq(nn.Module):
         :params
             x               : B, L
             x_len           : L
-            target_y        : B, L
             extend_vocab    : B, V + OOV
+            target_y        : B, L
             teacher_forcing : False
             greedy_search   : True
             
@@ -56,8 +56,8 @@ class Seq2Seq(nn.Module):
             loss            : B, L
     '''
     def forward(self, x, x_len,
-                target_y,
                 extend_vocab,
+                target_y=None,
                 calculate_loss=False,
                 teacher_forcing=False,
                 greedy_search=True):

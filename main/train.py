@@ -32,20 +32,20 @@ class Train(object):
         output = self.seq2seq(
             batch.articles,
             batch.articles_len,
-            batch.summaries,
-            batch.extend_vocab, calculate_loss=True, teacher_forcing=True, greedy_search=True)
+            batch.extend_vocab,
+            batch.summaries, calculate_loss=True, teacher_forcing=True, greedy_search=True)
 
         # RL
         sample_output = self.seq2seq(
             batch.articles,
             batch.articles_len,
-            batch.summaries, batch.extend_vocab, calculate_loss=True, greedy_search=False)
+            batch.extend_vocab, batch.summaries, calculate_loss=True, greedy_search=False)
 
         with t.autograd.no_grad():
             baseline_output = self.seq2seq(
                 batch.articles,
                 batch.articles_len,
-                batch.summaries, batch.extend_vocab)
+                batch.extend_vocab, batch.summaries)
 
         # convert decoded output to string
 

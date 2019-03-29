@@ -65,7 +65,10 @@ class Vocab(object):
             raise ValueError('Id not found in vocab: %d' % word_id)
         return self._id_to_word[word_id]
 
-    def words2ids(self, words, oovs=[]):
+    def words2ids(self, words):
+        return [self.word2id(w) for w in words]
+
+    def extend_words2ids(self, words, oovs=[]):
         ids = []
         oovs_ = oovs
         for w in words:
