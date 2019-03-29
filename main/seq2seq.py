@@ -84,7 +84,7 @@ class Seq2Seq(nn.Module):
         dec_len = self.max_dec_steps if target_y is None else target_y.size(1)
 
         # stop decoding mask
-        stop_dec_mask = t.zeros(batch_size)
+        stop_dec_mask = cuda(t.zeros(batch_size))
 
         for i in range(dec_len):
 
