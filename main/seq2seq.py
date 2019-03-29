@@ -28,9 +28,19 @@ class Seq2Seq(nn.Module):
         self.enc_att = EncoderAttention()
         self.dec_att = DecoderAttention()
 
-        self.vocab_gen = nn.Linear(6 * self.hidden_size, self.vocab.size())
+        #
+        decode2proj = nn.Linear(6 * self.hidden_size, self.emb_size, bias=False)  # project output to embedding space
 
-        self.p_gen = nn.Linear(6 * self.hidden_size, 1)
+        proj2vocab = nn.Linear(self.emb_size, self.vocab.size(), bias=False)
+        proj2vocab.weight.data = self.embedding.weight.data        # share weights between vocab & embedding
+
+        self.vocab_gen = nn.Sequential(
+            decode2proj,
+            proj2vocab
+        )
+
+        #
+        self.ptr_gen = nn.Linear(6 * self.hidden_size, 1)
 
     '''
         :params
@@ -182,7 +192,7 @@ class Seq2Seq(nn.Module):
 
         # pointer-generator
 
-        ptr_gen = t.sigmoid(self.p_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, 1
+        ptr_gen = t.sigmoid(self.ptr_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, 1
 
         # pointer distribution
 
