@@ -11,7 +11,6 @@ class Batch(object):
         self.extend_vocab = extend_vocab
 
         self.oovs = oovs
-        self.max_ovv_len = max([len(ovv) for ovv in oovs])
 
         # to evaluate rouge score
         self.original_summaries = original_summaries

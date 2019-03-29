@@ -48,7 +48,6 @@ class Seq2Seq(nn.Module):
             x_len           : L
             target_y        : B, L
             extend_vocab    : B, V + OOV
-            max_ovv_len     : C
             teacher_forcing : False
             greedy_search   : True
             
@@ -59,7 +58,6 @@ class Seq2Seq(nn.Module):
     def forward(self, x, x_len,
                 target_y,
                 extend_vocab,
-                max_ovv_len,
                 calculate_loss=False,
                 teacher_forcing=False,
                 greedy_search=True):
@@ -95,6 +93,9 @@ class Seq2Seq(nn.Module):
 
         # stop decoding mask
         stop_dec_mask = cuda(t.zeros(batch_size))
+
+        #
+        max_ovv_len = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN.idx])
 
         for i in range(dec_len):
 
@@ -156,7 +157,7 @@ class Seq2Seq(nn.Module):
             enc_hiddens         :   B, L, 2H
             enc_temporal_score  :   B, L
             extend_vocab        :   B, V + OOV
-            max_ovv_len         :   C
+            max_oov_len         :   C
             
         :returns
             final_vocab_dist    :   B, V + OOV
@@ -171,7 +172,7 @@ class Seq2Seq(nn.Module):
                enc_hiddens,
                enc_temporal_score,
                extend_vocab,
-               max_ovv_len):
+               max_oov_len):
 
         # embedding input
         dec_input = self.embedding(dec_input)   # B, E
@@ -205,10 +206,10 @@ class Seq2Seq(nn.Module):
 
         # final vocab distribution
 
-        final_vocab_dist = cuda(t.zeros(len(dec_input), self.vocab.size() + max_ovv_len))     # B, V + OOV
-        #
+        final_vocab_dist = cuda(t.zeros(len(dec_input), self.vocab.size() + max_oov_len))     # B, V + OOV
+
         final_vocab_dist[:, :self.vocab.size()] = vocab_dist
-        #
+
         final_vocab_dist.scatter_add(1, extend_vocab, ptr_dist)
 
         return final_vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
