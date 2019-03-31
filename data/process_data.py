@@ -36,10 +36,9 @@ def extract_samples(file_name, start_index, end_index, extract_file_name=None):
                 counter += 1
                 continue
 
-            line = line.replace('``', '\"').replace('\'\'', '\"').replace('<t>', '').replace('</t>', '')
+            line = normalize_string(line)
 
-            if line != '\n':
-                writer.write(line)
+            writer.write(line + '\n')
 
             counter += 1
 
@@ -67,23 +66,19 @@ def chunk_samples(file_name, chunk_size):
             counter += 1
 
 
-def generate_vocab(article_file, summary_file, vocab_file=None):
+def generate_vocab(file, vocab_file=None):
     if not os.path.exists('extract'):
         os.makedirs('extract')
 
-    with open(article_file, 'r') as art_reader, open(summary_file, 'r') as summary_reader:
+    with open(file, 'r') as reader:
         vocab_counter = collections.Counter()
 
         # build vocab
-        for article in art_reader:
-            summary = next(summary_reader)
+        for article in reader:
+            tokens = normalize_string(article).split(' ')
 
-            art_tokens = article.split(' ')
-            sum_tokens = summary.split(' ')
-
-            tokens = art_tokens + sum_tokens
             tokens = [t.strip() for t in tokens]  # strip
-            tokens = [t for t in tokens if t != ""]  # remove empty
+            tokens = [t for t in tokens if valid_vocab(t)]  # remove invalid
 
             vocab_counter.update(tokens)
 
@@ -92,14 +87,17 @@ def generate_vocab(article_file, summary_file, vocab_file=None):
             vocab_file = 'extract/vocab.txt'
 
         with open(vocab_file, 'w') as writer:
-            num_rex = re.compile('#+.?#*')
+            for token in vocab_counter:
+                count = vocab_counter[token]
+                writer.write(token + ' ' + str(count) + '\n')
 
-            for word in vocab_counter:
-                if num_rex.match(word) is not None or word.lower() == '<unk>':
-                    continue
 
-                count = vocab_counter[word]
-                writer.write(word + ' ' + str(count) + '\n')
+def normalize_string(string):
+    return string.lower().strip()
+
+
+def valid_vocab(string):
+    return string != '' and re.match('^([a-z]+)|([a-z]+-[a-z]+)|[\'\"(),.?!]$', string)
 
 
 if __name__ == '__main__':
@@ -108,12 +106,8 @@ if __name__ == '__main__':
     parser.add_argument('--opt', type=str, default="extract")
     parser.add_argument('--file', type=str)
     parser.add_argument('--sindex', type=int, default="0")
-    parser.add_argument('--eindex', type=int, default="1000")
+    parser.add_argument('--eindex', type=int, default="999")
     parser.add_argument('--chunk_size', type=int, default="20000")
-
-    # generate vocab
-    parser.add_argument('--art_file', type=str)
-    parser.add_argument('--sum_file', type=str)
     parser.add_argument('--vocab_file', type=str)
 
     args = parser.parse_args()
@@ -121,9 +115,8 @@ if __name__ == '__main__':
     if args.opt == 'chunk':
         chunk_samples(args.file, args.chunk_size)
     elif args.opt == 'gen-vocab':
-        generate_vocab(args.art_file, args.sum_file, args.vocab_file)
+        generate_vocab(args.file, args.vocab_file)
     elif args.opt == 'count':
-        count_samples()
+        print(count_samples(args.file))
     else:
         extract_samples(args.file, args.sindex, args.eindex)
-
