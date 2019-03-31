@@ -7,3 +7,14 @@ https://github.com/harvardnlp/sent-summary
 ++ Other
 
  echo "I won't be." | java -classpath "./stanford-corenlp-3.9.2.jar" edu.stanford.nlp.process.PTBTokenizer
+
+
+
++ Problem:
+
+- not exclude padding when do intra encoder attention
+- RL loss is wrong
+- change sampling in RL learning
+- scheduled sampling decay
+- apply dropout
+- apply Clip gradient norms

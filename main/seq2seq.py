@@ -160,7 +160,7 @@ class Seq2Seq(nn.Module):
             max_oov_len         :   C
             
         :returns
-            final_vocab_dist    :   B, V + OOV
+            vocab_dist          :   B, V + OOV
             dec_hidden          :   B, 2H
             enc_ctx_vector      :   B, 2H
             dec_ctx_vector      :   B, 2H
@@ -213,3 +213,21 @@ class Seq2Seq(nn.Module):
         final_vocab_dist.scatter_add(1, extend_vocab, ptr_dist)
 
         return final_vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
+
+    '''
+    
+    '''
+    def summarize(self, x):
+        words = x.split()
+
+        x = t.tensor(self.vocab.words2ids(words)).unsqueeze(0)
+
+        x_len = t.tensor([len(words)])
+
+        extend_vocab, oov = self.vocab.extend_words2ids(words)
+        extend_vocab = t.tensor(extend_vocab).unsqueeze(0)
+
+        y = self.forward(x, x_len, extend_vocab)[0].squeeze(0)
+
+        return ' '.join(self.vocab.ids2words(y.tolist(), oov))
+
