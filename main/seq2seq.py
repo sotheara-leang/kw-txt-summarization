@@ -80,14 +80,14 @@ class Seq2Seq(nn.Module):
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
-
             # set mask = 1 If output is [STOP]
             stop_dec_mask[(stop_dec_mask == 0) + (dec_output == TK_STOP_DECODING.idx) == 2] = 1
 
             # stop when all masks are 1
             if len(stop_dec_mask[stop_dec_mask == 1]) == len(stop_dec_mask):
                 break
+
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
             dec_input = dec_output
 

@@ -228,11 +228,6 @@ class Train(object):
 
             batch_counter = 1
 
-            total_loss = 0
-            total_ml_loss = 0
-            total_rl_loss = 0
-            total_samples_award = 0
-
             while True:
                 # get next batch
                 batch = self.dataloader.next()
@@ -244,28 +239,19 @@ class Train(object):
                 batch = self.batch_initializer.init(batch)
 
                 # feed batch to model
-                loss, ml_loss, rl_loss, samples_award, enable_rl = self.train_batch(batch, i+1)
+                loss, ml_loss, rl_loss, samples_reward, enable_rl = self.train_batch(batch, i+1)
 
-                total_loss += loss.item()
-                total_ml_loss += ml_loss.item()
-                total_rl_loss += rl_loss.item()
-                total_samples_award += samples_award
+                print(loss, ml_loss, rl_loss, samples_reward)
 
-                batch_counter += 1
+                if enable_rl:
+                    logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f', batch_counter,
+                                 loss, ml_loss, rl_loss, samples_reward)
+                else:
+                    logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=NA', batch_counter, loss, ml_loss)
+
+                batch_counter = batch_counter + 1
             #
             self.dataloader.reset()
-
-            loss_avg = total_loss / batch_counter
-            ml_loss_avg = total_ml_loss / batch_counter
-            rl_loss_avg = total_rl_loss / batch_counter
-            samples_reward_avg = total_samples_award / batch_counter
-
-            logger.debug('loss\t\t=\t%.3f',  loss_avg)
-            logger.debug('ml-loss\t=\t%.3f', ml_loss_avg)
-            if enable_rl:
-                logger.debug('rl-loss\t=\t%.3f,\t reward=%.3f', rl_loss_avg, samples_reward_avg)
-            else:
-                logger.debug('rl-loss\t=\tNA')
 
         # save model
         model_path = FileUtil.get_file_path(conf.get('train:model-file'))
