@@ -11,6 +11,7 @@ train:
   forcing_ratio: 0.7
   forcing_decay: 0.05
   learning_rate: 0.001
+  rl_transit_epoch: -1
   rl_transit_decay: 0.05
   rl-weight: 0.7
   epoch: 100

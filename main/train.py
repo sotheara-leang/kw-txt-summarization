@@ -16,6 +16,7 @@ class Train(object):
         self.rl_weight = conf.get('train:rl-weight')
         self.forcing_ratio = conf.get('train:forcing_ratio')
         self.forcing_decay = conf.get('train:forcing_decay')
+        self.rl_transit_epoch = conf.get('train:rl_transit_epoch')
         self.rl_transit_decay = conf.get('train:rl_transit_decay')
 
         self.vocab = Vocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
@@ -45,8 +46,12 @@ class Train(object):
         ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
         ml_loss = t.mean(ml_loss)
 
-        # linear transit learning
-        enable_rl = max(0, 1 - self.rl_transit_decay * epoch_counter) == 0
+        # transit reinforced learning
+
+        if self.rl_transit_epoch >= 0:
+            enable_rl = epoch_counter == self.rl_transit_epoch
+        else:
+            enable_rl = max(0, 1 - self.rl_transit_decay * epoch_counter) == 0
 
         if enable_rl:
             # sampling
@@ -152,7 +157,7 @@ class Train(object):
             else:
                 forcing_ratio = max(0, self.forcing_ratio - self.forcing_decay * epoch_counter)
 
-                use_ground_truth = t.ones(batch_size) > forcing_ratio  # B
+                use_ground_truth = t.randn(batch_size) < forcing_ratio  # B
                 use_ground_truth = cuda(use_ground_truth.long())
 
                 dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output  # B
