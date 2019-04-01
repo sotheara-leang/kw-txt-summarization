@@ -1,4 +1,5 @@
 from rouge import Rouge
+import random
 import torch.nn.functional as f
 from torch.distributions import Categorical
 
@@ -15,6 +16,7 @@ class Train(object):
         self.rl_weight = conf.get('train:rl-weight')
         self.forcing_ratio = conf.get('train:forcing_ratio')
         self.forcing_decay = conf.get('train:forcing_decay')
+        self.rl_transit_decay = conf.get('train:rl_transit_decay')
 
         self.vocab = Vocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
@@ -40,48 +42,61 @@ class Train(object):
         # ML
         output = self.train_ml(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab, batch.summaries, epoch_counter)
 
-        # RL - sampling
-        sample_output = self.train_rl(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab,  batch.summaries, True)
-
-        # RL - greedy search
-        with t.autograd.no_grad():
-            baseline_output = self.train_rl(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab,  batch.summaries, False)
-
-        # convert decoded output to string
-
-        sample_summaries = []
-        sample_outputs = sample_output[0].tolist()
-        for idx, summary in enumerate(sample_outputs):
-            sample_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
-
-        baseline_summaries = []
-        baseline_outputs = baseline_output[0].tolist()
-        for idx, summary in enumerate(baseline_outputs):
-            baseline_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
-
-        reference_summaries = batch.original_summaries
-
-        # calculate rouge score
-
-        sample_scores = rouge.get_scores(list(sample_summaries), list(reference_summaries))
-        sample_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in sample_scores]))
-
-        baseline_scores = rouge.get_scores(list(baseline_summaries), list(reference_summaries))
-        baseline_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in baseline_scores]))
-
-        # ml loss
-
         ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
         ml_loss = t.mean(ml_loss)
 
-        # rl loss
+        # linear transit learning
+        enable_rl = max(0, 1 - self.rl_transit_decay * epoch_counter) == 0
 
-        rl_loss = t.sum(sample_output[1], dim=1) / t.sum(sample_output[1] != 0, dim=1).float()
-        rl_loss = (baseline_scores - sample_scores) * rl_loss
-        rl_loss = t.mean(rl_loss)
+        if enable_rl:
+            # sampling
+            sample_output = self.train_rl(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab,  batch.summaries, True)
+
+            # greedy search
+            with t.autograd.no_grad():
+                baseline_output = self.train_rl(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab,  batch.summaries, False)
+
+            # convert decoded output to string
+
+            sample_summaries = []
+            sample_outputs = sample_output[0].tolist()
+            for idx, summary in enumerate(sample_outputs):
+                sample_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+
+            baseline_summaries = []
+            baseline_outputs = baseline_output[0].tolist()
+            for idx, summary in enumerate(baseline_outputs):
+                baseline_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+
+            reference_summaries = batch.original_summaries
+
+            # calculate rouge score
+
+            sample_scores = rouge.get_scores(list(sample_summaries), list(reference_summaries))
+            sample_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in sample_scores]))
+
+            baseline_scores = rouge.get_scores(list(baseline_summaries), list(reference_summaries))
+            baseline_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in baseline_scores]))
+
+            # loss
+
+            rl_loss = t.sum(sample_output[1], dim=1) / t.sum(sample_output[1] != 0, dim=1).float()
+            rl_loss = (baseline_scores - sample_scores) * rl_loss
+            rl_loss = t.mean(rl_loss)
+
+            # reward
+
+            reward = t.mean(sample_scores - baseline_scores)
+
+        else:
+            rl_loss = cuda(t.zeros(1))
+            reward = 0
 
         # total loss
-        loss = self.rl_weight * rl_loss + (1 - self.rl_weight) * ml_loss
+
+        rl_weight = self.rl_weight if enable_rl else 0
+
+        loss = rl_weight * rl_loss + (1 - rl_weight) * ml_loss
 
         self.optimizer.zero_grad()
 
@@ -89,9 +104,7 @@ class Train(object):
 
         self.optimizer.step()
 
-        reward = t.mean(sample_scores - baseline_scores)
-
-        return loss, ml_loss, rl_loss, reward
+        return loss, ml_loss, rl_loss, reward, enable_rl
 
     def train_ml(self, enc_outputs, dec_hidden, dec_input, extend_vocab, target_y, epoch_counter):
         batch_size          = len(enc_outputs)
@@ -132,14 +145,17 @@ class Train(object):
 
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
-            # sampling next input
+            # teacher forcing
 
-            forcing_ratio = max(0, self.forcing_ratio - self.forcing_decay * epoch_counter)
+            if self.forcing_ratio == 1:
+                dec_input = target_y[:, i]
+            else:
+                forcing_ratio = max(0, self.forcing_ratio - self.forcing_decay * epoch_counter)
 
-            use_ground_truth = t.rand(batch_size) < forcing_ratio  # B
-            use_ground_truth = cuda(use_ground_truth.long())
+                use_ground_truth = t.ones(batch_size) > forcing_ratio  # B
+                use_ground_truth = cuda(use_ground_truth.long())
 
-            dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output  # B
+                dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output  # B
 
             # if next input is oov, change it to UNKNOWN_TOKEN
 
@@ -223,11 +239,11 @@ class Train(object):
                 batch = self.batch_initializer.init(batch)
 
                 # feed batch to model
-                loss, ml_loss, rl_loss, samples_award = self.train_batch(batch, i+1)
+                loss, ml_loss, rl_loss, samples_award, enable_rl = self.train_batch(batch, i+1)
 
-                total_loss += loss
-                total_ml_loss += ml_loss
-                total_rl_loss += rl_loss
+                total_loss += loss.item()
+                total_ml_loss += ml_loss.item()
+                total_rl_loss += rl_loss.item()
                 total_samples_award += samples_award
 
                 batch_counter += 1
@@ -241,7 +257,10 @@ class Train(object):
 
             logger.debug('loss\t\t=\t%.3f',  loss_avg)
             logger.debug('ml-loss\t=\t%.3f', ml_loss_avg)
-            logger.debug('rl-loss\t=\t%.3f,\t reward=%.3f', rl_loss_avg, samples_reward_avg)
+            if enable_rl:
+                logger.debug('rl-loss\t=\t%.3f,\t reward=%.3f', rl_loss_avg, samples_reward_avg)
+            else:
+                logger.debug('rl-loss\t=\tNA')
 
         # save model
         model_path = FileUtil.get_file_path(conf.get('train:model-file'))
