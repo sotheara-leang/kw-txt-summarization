@@ -33,14 +33,16 @@ class Train(object):
             batch.articles,
             batch.articles_len,
             batch.extend_vocab,
-            batch.summaries, calculate_loss=True, teacher_forcing=True, greedy_search=True)
+            batch.summaries, calculate_loss=True, teacher_forcing=True)
 
         # RL
+        # sampling
         sample_output = self.seq2seq(
             batch.articles,
             batch.articles_len,
             batch.extend_vocab, batch.summaries, calculate_loss=True, greedy_search=False)
 
+        # greedy search
         with t.autograd.no_grad():
             baseline_output = self.seq2seq(
                 batch.articles,

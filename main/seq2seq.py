@@ -6,6 +6,7 @@ from main.decoder import Decoder
 from main.encoder_attention import EncoderAttention
 from main.decoder_attention import DecoderAttention
 from main.common.vocab import *
+from torch.distributions import Categorical
 
 
 class Seq2Seq(nn.Module):
@@ -88,14 +89,14 @@ class Seq2Seq(nn.Module):
         # total loss
         loss = None   # B, L
 
-        #
-        dec_len = self.max_dec_steps if target_y is None else target_y.size(1)
-
         # stop decoding mask
         stop_dec_mask = cuda(t.zeros(batch_size))
 
         #
-        max_ovv_len = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN.idx])
+        max_ovv_len = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN.idx] + [0] * len(extend_vocab))
+
+        #
+        dec_len = self.max_dec_steps if target_y is None else target_y.size(1)
 
         for i in range(dec_len):
 
@@ -114,22 +115,31 @@ class Seq2Seq(nn.Module):
                 _, dec_output = t.max(vocab_dist, dim=1)   # B - word idx
             else:
                 # sampling
-                dec_output = t.multinomial(vocab_dist, 1).squeeze()     # B - word idx
+                sampling_dist = Categorical(vocab_dist)
+                dec_output = sampling_dist.sample()        # B - word idx
 
             # record output
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)    # B, L
 
             # calculate loss
-            if calculate_loss and target_y is not None:
-                step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING.idx)
+            if calculate_loss:
+                if teacher_forcing and target_y is not None:
+                    step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING.idx)    # B
+
+                elif not greedy_search:
+                    step_loss = sampling_dist.log_prob(dec_output)  # B
 
                 # set loss to 0 after TK_STOP_DECODING
                 step_loss[stop_dec_mask == 1] = 0
 
-                loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)    # B, L
+                loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
 
-                # set mask = 1 If output is not [STOP] at previous time step and current output is [STOP]
+                # set mask = 1 If output is not [STOP]
                 stop_dec_mask[(stop_dec_mask == 0) + (dec_output == TK_STOP_DECODING.idx) == 2] = 1
+
+                # stop when all mask is 1
+                if len(stop_dec_mask[stop_dec_mask == 1]) == len(stop_dec_mask):
+                    break
 
             # record decoder hidden
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
