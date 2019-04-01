@@ -12,6 +12,9 @@ class Train(object):
 
     def __init__(self):
         self.epoch = conf.get('train:epoch')
+        self.rl_weight = conf.get('train:rl-weight')
+        self.forcing_ratio = conf.get('train:forcing_ratio')
+        self.forcing_decay = conf.get('train:forcing_decay')
 
         self.vocab = Vocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
@@ -23,10 +26,7 @@ class Train(object):
 
         self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=conf.get('train:learning_rate'))
 
-        self.rl_weight = conf.get('train:rl-weight')
-        self.forcing_ratio = conf.get('train:forcing_ratio')
-
-    def train_batch(self, batch):
+    def train_batch(self, batch, epoch_counter):
         self.seq2seq.train()
 
         rouge       = Rouge()
@@ -35,10 +35,10 @@ class Train(object):
 
         x = self.seq2seq.embedding(batch.articles)  # B, L, E
 
-        enc_outputs, (enc_hidden_n, _) = self.seq2seq.encoder(x, batch.articles_len)  # B, L, 2H, B, 2H
+        enc_outputs, (enc_hidden_n, _) = self.seq2seq.encoder(x, batch.articles_len)  # (B, L, 2H), (B, 2H)
 
         # ML
-        output = self.train_ml(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab, batch.summaries)
+        output = self.train_ml(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab, batch.summaries, epoch_counter)
 
         # RL - sampling
         sample_output = self.train_rl(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab,  batch.summaries, True)
@@ -93,7 +93,7 @@ class Train(object):
 
         return loss, ml_loss, rl_loss, reward
 
-    def train_ml(self, enc_outputs, dec_hidden, dec_input, extend_vocab, target_y):
+    def train_ml(self, enc_outputs, dec_hidden, dec_input, extend_vocab, target_y, epoch_counter):
         batch_size          = len(enc_outputs)
         y                   = None  # B, T
         loss                = None  # B, T
@@ -117,9 +117,13 @@ class Train(object):
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
+            # loss
+
             step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING.idx)  # B
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
+
+            # masking decoding
 
             stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING.idx) == 2] = 1
 
@@ -128,13 +132,19 @@ class Train(object):
 
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
-            use_ground_truth = t.rand(batch_size) > self.forcing_ratio  # B
+            # sampling next input
+
+            forcing_ratio = max(0, self.forcing_ratio - self.forcing_decay * epoch_counter)
+
+            use_ground_truth = t.rand(batch_size) < forcing_ratio  # B
             use_ground_truth = cuda(use_ground_truth.long())
 
             dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output  # B
 
             # if next input is oov, change it to UNKNOWN_TOKEN
+
             is_oov = (dec_input >= self.vocab.size()).long()
+
             dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN.idx
 
         return y, loss
@@ -213,7 +223,7 @@ class Train(object):
                 batch = self.batch_initializer.init(batch)
 
                 # feed batch to model
-                loss, ml_loss, rl_loss, samples_award = self.train_batch(batch)
+                loss, ml_loss, rl_loss, samples_award = self.train_batch(batch, i+1)
 
                 total_loss += loss
                 total_ml_loss += ml_loss

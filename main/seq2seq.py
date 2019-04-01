@@ -163,12 +163,11 @@ class Seq2Seq(nn.Module):
     def summarize(self, x):
         words = x.split()
 
-        x = t.tensor(self.vocab.words2ids(words)).unsqueeze(0)
-
-        x_len = t.tensor([len(words)])
+        x = cuda(t.tensor(self.vocab.words2ids(words)).unsqueeze(0))
+        x_len = cuda(t.tensor([len(words)]))
 
         extend_vocab, oov = self.vocab.extend_words2ids(words)
-        extend_vocab = t.tensor(extend_vocab).unsqueeze(0)
+        extend_vocab = cuda(t.tensor(extend_vocab).unsqueeze(0))
 
         y = self.forward(x, x_len, extend_vocab)[0].squeeze(0)
 
