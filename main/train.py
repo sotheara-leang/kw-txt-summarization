@@ -30,18 +30,16 @@ class Train(object):
         self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=conf.get('train:learning_rate'))
 
     def train_batch(self, batch, epoch_counter):
-        self.seq2seq.train()
-
         rouge       = Rouge()
         batch_size  = len(batch.articles_len)
         dec_input   = cuda(t.tensor([TK_START_DECODING.idx] * batch_size))  # B
 
         x = self.seq2seq.embedding(batch.articles)  # B, L, E
 
-        enc_outputs, (enc_hidden_n, _) = self.seq2seq.encoder(x, batch.articles_len)  # (B, L, 2H), (B, 2H)
+        enc_outputs, (enc_hidden, enc_cell) = self.seq2seq.encoder(x, batch.articles_len)  # (B, L, 2H), (B, 2H)
 
         # ML
-        output = self.train_ml(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab, batch.summaries, epoch_counter)
+        output = self.train_ml(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab, batch.summaries, epoch_counter)
 
         ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
         ml_loss = t.mean(ml_loss)
@@ -55,11 +53,11 @@ class Train(object):
 
         if enable_rl:
             # sampling
-            sample_output = self.train_rl(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab,  batch.summaries, True)
+            sample_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, True)
 
             # greedy search
             with t.autograd.no_grad():
-                baseline_output = self.train_rl(enc_outputs, enc_hidden_n, dec_input, batch.extend_vocab,  batch.summaries, False)
+                baseline_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, False)
 
             # convert decoded output to string
 
@@ -111,7 +109,7 @@ class Train(object):
 
         return loss, ml_loss, rl_loss, reward, enable_rl
 
-    def train_ml(self, enc_outputs, dec_hidden, dec_input, extend_vocab, target_y, epoch_counter):
+    def train_ml(self, enc_outputs, dec_hidden, dec_cell, dec_input, extend_vocab, target_y, epoch_counter):
         batch_size          = len(enc_outputs)
         y                   = None  # B, T
         loss                = None  # B, T
@@ -122,9 +120,10 @@ class Train(object):
 
         for i in range(target_y.size(1)):
             # decoding
-            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.seq2seq.decode(
+            vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.seq2seq.decode(
                 dec_input,
                 dec_hidden,
+                dec_cell,
                 pre_dec_hiddens,
                 enc_outputs,
                 enc_temporal_score,
@@ -170,7 +169,7 @@ class Train(object):
 
         return y, loss
 
-    def train_rl(self, enc_outputs, dec_hidden, dec_input, target_y, extend_vocab, sampling):
+    def train_rl(self, enc_outputs, dec_hidden, dec_cell, dec_input, target_y, extend_vocab, sampling):
         batch_size          = len(enc_outputs)
         y                   = None  # B, T
         loss                = None  # B, T
@@ -182,9 +181,10 @@ class Train(object):
 
         for i in range(dec_len):
             # decoding
-            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.seq2seq.decode(
+            vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.seq2seq.decode(
                 dec_input,
                 dec_hidden,
+                dec_cell,
                 pre_dec_hiddens,
                 enc_outputs,
                 enc_temporal_score,
@@ -220,6 +220,8 @@ class Train(object):
         return y, loss
 
     def run(self):
+        self.seq2seq.train()
+
         config_dump = conf.dump()
         logger.debug('configuration: \n' + config_dump.strip())
 
@@ -240,8 +242,6 @@ class Train(object):
 
                 # feed batch to model
                 loss, ml_loss, rl_loss, samples_reward, enable_rl = self.train_batch(batch, i+1)
-
-                print(loss, ml_loss, rl_loss, samples_reward)
 
                 if enable_rl:
                     logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f', batch_counter,

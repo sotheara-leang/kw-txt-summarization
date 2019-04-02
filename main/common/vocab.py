@@ -83,18 +83,20 @@ class Vocab(object):
                 ids.append(i)
         return ids, oovs_
 
-    def ids2words(self, ids, oovs):
+    def ids2words(self, ids, oovs=None):
         words = []
         for i in ids:
             try:
                 w = self.id2word(i)  # might be [UNK]
             except ValueError:  # w is OOV
-                assert oovs is not None, "Error: a word ID does not in the vocabulary."
-                oov_idx = i - self.size()
-                try:
-                    w = oovs[oov_idx]
-                except ValueError:
-                    raise ValueError('Error: a word ID %i does not corresponds to OOV %i' % (i, oov_idx))
+                if oovs is not None:
+                    oov_idx = i - self.size()
+                    try:
+                        w = oovs[oov_idx]
+                    except ValueError:
+                        raise ValueError('Error: a word ID %i does not corresponds to OOV %i' % (i, oov_idx))
+                else:
+                    w = TK_UNKNOWN.word
             words.append(w)
         return words
 

@@ -45,13 +45,16 @@ class Seq2Seq(nn.Module):
     def forward(self, x, x_len, extend_vocab):
         x = self.embedding(x)  # B, L, E
 
-        enc_outputs, (enc_hidden_n, _) = self.encoder(x, x_len)  # (B, L, 2H) , (B, 2H)
+        enc_outputs, (enc_hidden_n, enc_cell_n) = self.encoder(x, x_len)  # (B, L, 2H) , (B, 2H)
 
         # initial decoder input = START_DECODING
         dec_input = cuda(t.tensor([TK_START_DECODING.idx] * len(x)))  # B
 
         # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
+
+        # initial decoder cell = encoder last cell
+        dec_cell = enc_cell_n
 
         # encoder temporal attention score
         enc_temporal_score = None   # B, L
@@ -67,9 +70,10 @@ class Seq2Seq(nn.Module):
 
         for i in range(self.max_dec_steps):
             # decoding
-            vocab_dist, dec_hidden, _, _, enc_temporal_score = self.decode(
+            vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.decode(
                 dec_input,
                 dec_hidden,
+                dec_cell,
                 pre_dec_hiddens,
                 enc_outputs,
                 enc_temporal_score,
@@ -97,6 +101,7 @@ class Seq2Seq(nn.Module):
         :params
             dec_input           :   B
             dec_hidden          :   B, 2H
+            dec_cell            :   B, 2H
             pre_dec_hiddens     :   B, T, 2H
             enc_hiddens         :   B, L, 2H
             enc_temporal_score  :   B, L
@@ -112,6 +117,7 @@ class Seq2Seq(nn.Module):
     '''
     def decode(self, dec_input,
                dec_hidden,
+               dec_cell,
                pre_dec_hiddens,
                enc_hiddens,
                enc_temporal_score,
@@ -121,8 +127,8 @@ class Seq2Seq(nn.Module):
         # embedding input
         dec_input = self.embedding(dec_input)   # B, E
 
-        # current hidden
-        dec_hidden = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :])  # B, 2H
+        # current hidden & cell
+        dec_hidden, dec_cell = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :], dec_cell)  # B, 2H
 
         # intra-temporal encoder attention
 
@@ -152,7 +158,7 @@ class Seq2Seq(nn.Module):
         final_vocab_dist[:, :self.vocab.size()] = vocab_dist
         final_vocab_dist.scatter_add(1, extend_vocab, ptr_dist)
 
-        return final_vocab_dist, dec_hidden, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
+        return final_vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
 
     '''
         :params
