@@ -143,13 +143,15 @@ class Seq2Seq(nn.Module):
 
         # pointer-generator
 
-        ptr_gen = t.sigmoid(self.ptr_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)))  # B, 1
+        combine_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
+
+        ptr_gen = t.sigmoid(self.ptr_gen(combine_input))  # B, 1
 
         ptr_dist = ptr_gen * enc_att  # B, L
 
         # vocab distribution
 
-        vocab_dist = f.softmax(self.vocab_gen(t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)), dim=1)  # B, V
+        vocab_dist = f.softmax(self.vocab_gen(combine_input), dim=1)  # B, V
         vocab_dist = (1 - ptr_gen) * vocab_dist  # B, V
 
         # final vocab distribution

@@ -1,5 +1,5 @@
 from rouge import Rouge
-import random
+import torch.nn as nn
 import torch.nn.functional as f
 from torch.distributions import Categorical
 
@@ -12,12 +12,13 @@ from main.common.util.file_util import FileUtil
 class Train(object):
 
     def __init__(self):
-        self.epoch = conf.get('train:epoch')
-        self.rl_weight = conf.get('train:rl-weight')
-        self.forcing_ratio = conf.get('train:forcing_ratio')
-        self.forcing_decay = conf.get('train:forcing_decay')
-        self.rl_transit_epoch = conf.get('train:rl_transit_epoch')
-        self.rl_transit_decay = conf.get('train:rl_transit_decay')
+        self.epoch              = conf.get('train:epoch')
+        self.rl_weight          = conf.get('train:rl-weight')
+        self.forcing_ratio      = conf.get('train:forcing_ratio')
+        self.forcing_decay      = conf.get('train:forcing_decay')
+        self.rl_transit_epoch   = conf.get('train:rl_transit_epoch')
+        self.rl_transit_decay   = conf.get('train:rl_transit_decay')
+        self.clip_gradient_max_norm  = conf.get('train:clip_gradient_max_norm')
 
         self.vocab = Vocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
@@ -30,6 +31,8 @@ class Train(object):
         self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=conf.get('train:learning_rate'))
 
     def train_batch(self, batch, epoch_counter):
+        self.optimizer.zero_grad()
+
         rouge       = Rouge()
         batch_size  = len(batch.articles_len)
         dec_input   = cuda(t.tensor([TK_START_DECODING.idx] * batch_size))  # B
@@ -101,9 +104,9 @@ class Train(object):
 
         loss = rl_weight * rl_loss + (1 - rl_weight) * ml_loss
 
-        self.optimizer.zero_grad()
-
         loss.backward()
+
+        nn.utils.clip_grad_norm_(self.seq2seq.parameters(), self.clip_gradient_max_norm, norm_type='inf')
 
         self.optimizer.step()
 

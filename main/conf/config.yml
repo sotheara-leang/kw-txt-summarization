@@ -1,5 +1,5 @@
-emb-size: 50 # 100 - Glove
-hidden-size: 50 # 200
+emb-size: 40 # 100 - Glove
+hidden-size: 40 # 200
 
 max-enc-steps: 100
 max-dec-steps: 100
@@ -8,14 +8,15 @@ vocab-file: data/train/vocab.txt
 model-file: data/train/model.ckpt
 
 train:
-  forcing_ratio: 0.7
+  learning_rate: 0.0001
+  clip_gradient_max_norm: 0.25
+  forcing_ratio: 1
   forcing_decay: 0.05
-  learning_rate: 0.001
   rl_transit_epoch: -1
-  rl_transit_decay: 0.05
+  rl_transit_decay: 0
   rl-weight: 0.7
-  epoch: 100
-  batch-size: 10
+  epoch: 200
+  batch-size: 20
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt
   vocab-file: data/train/vocab.txt
