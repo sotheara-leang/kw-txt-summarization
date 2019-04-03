@@ -6,7 +6,7 @@ from main.common.util.file_util import FileUtil
 class TestConfiguration(TestCase):
 
     def test(self):
-        GloveVocab(FileUtil.get_file_path('data/extract/vocab.bin'), FileUtil.get_file_path('data/extract/embedding.dat'))
+        GloveVocab(FileUtil.get_file_path('data/extract/vocab.bin'))
 
 
 

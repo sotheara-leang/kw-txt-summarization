@@ -10,7 +10,7 @@ def generate_vocab(file_in, dir_out):
     id2word = {}
     id2vect = {}
 
-    vectors = bcolz.carray(np.zeros(1), rootdir=f'{dir_out}/embedding.dat', mode='w')
+    vectors = bcolz.carray(np.zeros(1), rootdir=dir_out + '/embedding', mode='w')
 
     idx = 4
 
@@ -30,16 +30,16 @@ def generate_vocab(file_in, dir_out):
             idx += 1
 
     if not os.path.exists(dir_out):
-        os.makedirs(dir_out)
+        os.makedirs(dir_out + '/embedding')
 
     vocab = {
         'word2id': word2id,
         'id2word': id2word
     }
 
-    pickle.dump(vocab, open(f'{dir_out}/vocab.bin', 'wb'))
+    pickle.dump(vocab, open(dir_out + '/vocab.bin', 'wb'))
 
-    vectors = bcolz.carray(vectors[1:].reshape(-1, vector.shape[0]), rootdir=f'{dir_out}/embedding.dat', mode='w')
+    vectors = bcolz.carray(vectors[1:].reshape(-1, vector.shape[0]), rootdir=dir_out + '/embedding', mode='w')
     vectors.flush()
 
 

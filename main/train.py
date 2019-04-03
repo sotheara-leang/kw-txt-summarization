@@ -3,12 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as f
 from torch.distributions import Categorical
 
-from main.common.common import *
 from main.data.giga import *
 from main.seq2seq import Seq2Seq
 from main.common.batch import *
 from main.common.util.file_util import FileUtil
-from main.common.simple_vocab import SimpleVocab
 from main.common.glove.vocab import GloveVocab
 from main.common.glove.embedding import GloveEmbedding
 
@@ -23,18 +21,17 @@ class Train(object):
         self.rl_transit_epoch   = conf.get('train:rl_transit_epoch')
         self.rl_transit_decay   = conf.get('train:rl_transit_decay')
         self.clip_gradient_max_norm  = conf.get('train:clip_gradient_max_norm')
+        self.log_per_batch      = conf.get('train:log_per_batch')
 
-        #self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
-        self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')), FileUtil.get_file_path(conf.get('train:emb-file')))
+        self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
-        self.embedding = GloveEmbedding(self.vocab)
-
-        #self.seq2seq = cuda(Seq2Seq(self.vocab))
-        self.seq2seq = cuda(Seq2Seq(self.vocab, self.embedding))
+        self.seq2seq = cuda(Seq2Seq(self.vocab, GloveEmbedding(FileUtil.get_file_path(conf.get('train:emb-file')))))
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
         self.dataloader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')), FileUtil.get_file_path(conf.get('train:summary-file')), conf.get('train:batch-size'))
+
+        self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=conf.get('train:learning_rate'))
 
     def train_batch(self, batch, epoch_counter):
         self.optimizer.zero_grad()
@@ -238,6 +235,11 @@ class Train(object):
 
             batch_counter = 1
 
+            total_loss = 0
+            total_ml_loss = 0
+            total_rl_loss = 0
+            total_samples_award = 0
+
             while True:
                 # get next batch
                 batch = self.dataloader.next()
@@ -251,13 +253,32 @@ class Train(object):
                 # feed batch to model
                 loss, ml_loss, rl_loss, samples_reward, enable_rl = self.train_batch(batch, i+1)
 
-                if enable_rl:
-                    logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f', batch_counter,
-                                 loss, ml_loss, rl_loss, samples_reward)
-                else:
-                    logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=NA', batch_counter, loss, ml_loss)
+                if self.log_per_batch:
+                    if enable_rl:
+                        logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f', batch_counter,
+                                     loss, ml_loss, rl_loss, samples_reward)
+                    else:
+                        logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=NA', batch_counter, loss, ml_loss)
+
+                total_loss += loss
+                total_ml_loss += ml_loss
+                total_rl_loss += rl_loss
+                total_samples_award += samples_reward
 
                 batch_counter = batch_counter + 1
+
+            loss_avg = total_loss / batch_counter
+            ml_loss_avg = total_ml_loss / batch_counter
+            rl_loss_avg = total_rl_loss / batch_counter
+            samples_reward_avg = total_samples_award / batch_counter
+
+            logger.debug('loss_avg\t\t=\t%.3f', loss_avg)
+            logger.debug('ml-loss-avg\t=\t%.3f', ml_loss_avg)
+            if enable_rl:
+                logger.debug('rl-loss_avg\t=\t%.3f,\t reward=%.3f', rl_loss_avg, samples_reward_avg)
+            else:
+                logger.debug('rl-loss_avg\t=\tNA')
+
             #
             self.dataloader.reset()
 
