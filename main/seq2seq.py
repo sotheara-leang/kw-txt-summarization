@@ -6,6 +6,7 @@ from main.decoder import Decoder
 from main.encoder_attention import EncoderAttention
 from main.decoder_attention import DecoderAttention
 from main.common.vocab import *
+from main.common.common import *
 
 
 class Seq2Seq(nn.Module):
@@ -21,7 +22,7 @@ class Seq2Seq(nn.Module):
 
         self.vocab = vocab
 
-        self.embedding = nn.Embedding(self.vocab.size(), self.emb_size, padding_idx=TK_PADDING.idx)
+        self.embedding = nn.Embedding(self.vocab.size(), self.emb_size, padding_idx=TK_PADDING['id'])
 
         self.encoder = Encoder()
         self.decoder = Decoder()
@@ -48,7 +49,7 @@ class Seq2Seq(nn.Module):
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.encoder(x, x_len)  # (B, L, 2H) , (B, 2H)
 
         # initial decoder input = START_DECODING
-        dec_input = cuda(t.tensor([TK_START_DECODING.idx] * len(x)))  # B
+        dec_input = cuda(t.tensor([TK_START_DECODING['id']] * len(x)))  # B
 
         # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
@@ -66,7 +67,7 @@ class Seq2Seq(nn.Module):
         # stop decoding mask
         stop_dec_mask = cuda(t.zeros(len(x)))
 
-        max_ovv_len = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN.idx] + [0] * len(extend_vocab))
+        max_ovv_len = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
 
         for i in range(self.max_dec_steps):
             # decoding
@@ -85,7 +86,7 @@ class Seq2Seq(nn.Module):
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
             # set mask = 1 If output is [STOP]
-            stop_dec_mask[(stop_dec_mask == 0) + (dec_output == TK_STOP_DECODING.idx) == 2] = 1
+            stop_dec_mask[(stop_dec_mask == 0) + (dec_output == TK_STOP_DECODING['id']) == 2] = 1
 
             # stop when all masks are 1
             if len(stop_dec_mask[stop_dec_mask == 1]) == len(stop_dec_mask):

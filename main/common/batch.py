@@ -1,4 +1,5 @@
 from main.common.vocab import *
+from main.common.common import *
 
 
 class Batch(object):
@@ -43,10 +44,10 @@ class BatchInitializer(object):
                 art_words = art_words[:self.max_enc_steps]
 
             enc_article = self.vocab.words2ids(art_words)
-            enc_article += [TK_PADDING.idx] * (max_article_len - len(enc_article))
+            enc_article += [TK_PADDING['id']] * (max_article_len - len(enc_article))
 
             enc_extend_vocab_article, article_oovs = self.vocab.extend_words2ids(art_words)
-            enc_extend_vocab_article += [TK_PADDING.idx] * (max_article_len - len(enc_extend_vocab_article))
+            enc_extend_vocab_article += [TK_PADDING['id']] * (max_article_len - len(enc_extend_vocab_article))
 
             enc_articles.append(enc_article)
             enc_extend_vocab_articles.append(enc_extend_vocab_article)
@@ -59,8 +60,8 @@ class BatchInitializer(object):
                 summary_words = summary_words[:self.max_enc_steps]
 
             enc_summary, _ = self.vocab.extend_words2ids(summary_words, oovs)
-            enc_summary = enc_summary + [TK_STOP_DECODING.idx]
-            enc_summary += [TK_PADDING.idx] * (max_summary_len - len(enc_summary))
+            enc_summary = enc_summary + [TK_STOP_DECODING['id']]
+            enc_summary += [TK_PADDING['id']] * (max_summary_len - len(enc_summary))
 
             enc_summaries.append(enc_summary)
 

@@ -3,10 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as f
 from torch.distributions import Categorical
 
+from main.common.common import *
 from main.data.giga import *
 from main.seq2seq import Seq2Seq
 from main.common.batch import *
 from main.common.util.file_util import FileUtil
+from main.common.simple_vocab import SimpleVocab
 
 
 class Train(object):
@@ -20,7 +22,7 @@ class Train(object):
         self.rl_transit_decay   = conf.get('train:rl_transit_decay')
         self.clip_gradient_max_norm  = conf.get('train:clip_gradient_max_norm')
 
-        self.vocab = Vocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
+        self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
         self.seq2seq = cuda(Seq2Seq(self.vocab))
 
@@ -35,7 +37,7 @@ class Train(object):
 
         rouge       = Rouge()
         batch_size  = len(batch.articles_len)
-        dec_input   = cuda(t.tensor([TK_START_DECODING.idx] * batch_size))  # B
+        dec_input   = cuda(t.tensor([TK_START_DECODING['id']] * batch_size))  # B
 
         x = self.seq2seq.embedding(batch.articles)  # B, L, E
 
@@ -119,7 +121,7 @@ class Train(object):
         enc_temporal_score  = None
         pre_dec_hiddens     = None  # B, T, 2H
         stop_decoding_mask  = cuda(t.zeros(batch_size))     # B
-        max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN.idx] + [0] * len(extend_vocab))
+        max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
 
         for i in range(target_y.size(1)):
             # decoding
@@ -139,13 +141,13 @@ class Train(object):
 
             # loss
 
-            step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING.idx)  # B
+            step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING['id'])  # B
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
 
             # masking decoding
 
-            stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING.idx) == 2] = 1
+            stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING['id']) == 2] = 1
 
             if len(stop_decoding_mask[stop_decoding_mask == 1]) == len(stop_decoding_mask):
                 break
@@ -168,7 +170,7 @@ class Train(object):
 
             is_oov = (dec_input >= self.vocab.size()).long()
 
-            dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN.idx
+            dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN['id']
 
         return y, loss
 
@@ -180,7 +182,7 @@ class Train(object):
         pre_dec_hiddens     = None  # B, T, 2H
         stop_decoding_mask  = cuda(t.zeros(batch_size))
         dec_len             = self.max_dec_steps if target_y is None else target_y.size(1)
-        max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN.idx] + [0] * len(extend_vocab))
+        max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
 
         for i in range(dec_len):
             # decoding
@@ -204,13 +206,13 @@ class Train(object):
                 # greedy search
                 _, dec_output = t.max(vocab_dist, dim=1)
 
-                step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING.idx)  # B
+                step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING['id'])  # B
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
 
-            stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING.idx) == 2] = 1
+            stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING['id']) == 2] = 1
 
             # stop when all masks are 1
             if len(stop_decoding_mask[stop_decoding_mask == 1]) == len(stop_decoding_mask):
