@@ -4,7 +4,7 @@ hidden-size: 50 # 200
 max-enc-steps: 100
 max-dec-steps: 100
 
-vocab-file: data/train/vocab.txt
+vocab-file: data/train/vocab.bin
 model-file: data/train/model.ckpt
 
 train:
@@ -17,9 +17,9 @@ train:
   rl-weight: 0.7
   epoch: 100
   batch-size: 30
-  log_per_batch: False
+  log_batch: False
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt
-  vocab-file: data/extract/vocab.bin
+  vocab-file: data/train/vocab.bin
   emb-file: data/extract/embedding
   model-file: data/train/model.ckpt

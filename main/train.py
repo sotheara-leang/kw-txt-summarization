@@ -8,6 +8,7 @@ from main.seq2seq import Seq2Seq
 from main.common.batch import *
 from main.common.util.file_util import FileUtil
 from main.common.glove.vocab import GloveVocab
+from main.common.simple_vocab import SimpleVocab
 from main.common.glove.embedding import GloveEmbedding
 
 
@@ -21,10 +22,13 @@ class Train(object):
         self.rl_transit_epoch   = conf.get('train:rl_transit_epoch')
         self.rl_transit_decay   = conf.get('train:rl_transit_decay')
         self.clip_gradient_max_norm  = conf.get('train:clip_gradient_max_norm')
-        self.log_per_batch      = conf.get('train:log_per_batch')
+        self.log_batch          = conf.get('train:log_batch')
+        self.hidden_size        = conf.get('hidden-size')
 
+        #self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
         self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
+        #self.seq2seq = cuda(Seq2Seq(self.vocab))
         self.seq2seq = cuda(Seq2Seq(self.vocab, GloveEmbedding(FileUtil.get_file_path(conf.get('train:emb-file')))))
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
@@ -123,11 +127,13 @@ class Train(object):
         pre_dec_hiddens     = None  # B, T, 2H
         stop_decoding_mask  = cuda(t.zeros(batch_size))     # B
         max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
+        enc_ctx_vector      = cuda(t.zeros(batch_size, 2 * self.hidden_size))
 
         for i in range(target_y.size(1)):
             # decoding
             vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.seq2seq.decode(
                 dec_input,
+                enc_ctx_vector,
                 dec_hidden,
                 dec_cell,
                 pre_dec_hiddens,
@@ -183,11 +189,13 @@ class Train(object):
         stop_decoding_mask  = cuda(t.zeros(batch_size))
         dec_len             = self.max_dec_steps if target_y is None else target_y.size(1)
         max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
+        enc_ctx_vector      = cuda(t.zeros(batch_size, 2 * self.hidden_size))
 
         for i in range(dec_len):
             # decoding
             vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.seq2seq.decode(
                 dec_input,
+                enc_ctx_vector,
                 dec_hidden,
                 dec_cell,
                 pre_dec_hiddens,
@@ -253,7 +261,7 @@ class Train(object):
                 # feed batch to model
                 loss, ml_loss, rl_loss, samples_reward, enable_rl = self.train_batch(batch, i+1)
 
-                if self.log_per_batch:
+                if self.log_batch:
                     if enable_rl:
                         logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f', batch_counter,
                                      loss, ml_loss, rl_loss, samples_reward)

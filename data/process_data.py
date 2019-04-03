@@ -84,7 +84,7 @@ def generate_vocab(file, vocab_file=None):
 
         # write vocab
         if vocab_file is None:
-            vocab_file = 'extract/vocab.txt'
+            vocab_file = 'extract/vocab.bin'
 
         with open(vocab_file, 'w') as writer:
             for token in vocab_counter:
