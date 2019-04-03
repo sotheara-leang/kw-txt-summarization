@@ -11,7 +11,7 @@ from main.common.common import *
 
 class Seq2Seq(nn.Module):
 
-    def __init__(self, vocab):
+    def __init__(self, vocab: Vocab, embedding=None):
         super(Seq2Seq, self).__init__()
 
         self.emb_size       = conf.get('emb-size')
@@ -22,7 +22,9 @@ class Seq2Seq(nn.Module):
 
         self.vocab = vocab
 
-        self.embedding = nn.Embedding(self.vocab.size(), self.emb_size, padding_idx=TK_PADDING['id'])
+        self.embedding = embedding
+        if self.embedding is None:
+            self.embedding = nn.Embedding(self.vocab.size(), self.emb_size, padding_idx=TK_PADDING['id'])
 
         self.encoder = Encoder()
         self.decoder = Decoder()

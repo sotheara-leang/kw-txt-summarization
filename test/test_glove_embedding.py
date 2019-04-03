@@ -13,6 +13,10 @@ class TestConfiguration(TestCase):
 
         emb = GloveEmbedding(vocab)
 
+        vector = vocab.vectors[0]
+
+        print(vector)
+
 
 
 

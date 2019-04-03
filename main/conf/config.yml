@@ -1,5 +1,5 @@
-emb-size: 40 # 100 - Glove
-hidden-size: 40 # 200
+emb-size: 50 # 100 - Glove
+hidden-size: 100 # 200
 
 max-enc-steps: 100
 max-dec-steps: 100
@@ -15,9 +15,11 @@ train:
   rl_transit_epoch: -1
   rl_transit_decay: 0
   rl-weight: 0.7
-  epoch: 200
-  batch-size: 20
+  epoch: 100
+  batch-size: 30
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt
-  vocab-file: data/train/vocab.txt
+  vocab-file: data/extract/vocab.bin
+  #vocab-file: data/train/vocab.txt
+  emb-file: data/extract/embedding.dat    # only Glove
   model-file: data/train/model.ckpt

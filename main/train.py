@@ -9,6 +9,8 @@ from main.seq2seq import Seq2Seq
 from main.common.batch import *
 from main.common.util.file_util import FileUtil
 from main.common.simple_vocab import SimpleVocab
+from main.common.glove.vocab import GloveVocab
+from main.common.glove.embedding import GloveEmbedding
 
 
 class Train(object):
@@ -22,15 +24,17 @@ class Train(object):
         self.rl_transit_decay   = conf.get('train:rl_transit_decay')
         self.clip_gradient_max_norm  = conf.get('train:clip_gradient_max_norm')
 
-        self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
+        #self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
+        self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')), FileUtil.get_file_path(conf.get('train:emb-file')))
 
-        self.seq2seq = cuda(Seq2Seq(self.vocab))
+        self.embedding = GloveEmbedding(self.vocab)
+
+        #self.seq2seq = cuda(Seq2Seq(self.vocab))
+        self.seq2seq = cuda(Seq2Seq(self.vocab, self.embedding))
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
         self.dataloader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')), FileUtil.get_file_path(conf.get('train:summary-file')), conf.get('train:batch-size'))
-
-        self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=conf.get('train:learning_rate'))
 
     def train_batch(self, batch, epoch_counter):
         self.optimizer.zero_grad()
@@ -108,7 +112,7 @@ class Train(object):
 
         loss.backward()
 
-        nn.utils.clip_grad_norm_(self.seq2seq.parameters(), self.clip_gradient_max_norm, norm_type='inf')
+        nn.utils.clip_grad_norm_(self.seq2seq.parameters(), self.clip_gradient_max_norm)
 
         self.optimizer.step()
 
@@ -140,7 +144,6 @@ class Train(object):
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
             # loss
-
             step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING['id'])  # B
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
