@@ -11,6 +11,11 @@ class Encoder(nn.Module):
 
         self.lstm = nn.LSTM(conf.get('emb-size'), conf.get('hidden-size'), num_layers=1, batch_first=True, bidirectional=True)
 
+    def init_weight(self):
+        for name, param in self.lstm.state_dict().items():
+            if 'weight' in name:
+                nn.init.xavier_normal_(param)
+
     '''
         :param
             x       : B, L, E

@@ -1,4 +1,5 @@
 from rouge import Rouge
+import torch as t
 import torch.nn as nn
 import torch.nn.functional as f
 from torch.distributions import Categorical
@@ -17,13 +18,16 @@ class Train(object):
     def __init__(self):
         self.epoch              = conf.get('train:epoch')
         self.rl_weight          = conf.get('train:rl-weight')
-        self.forcing_ratio      = conf.get('train:forcing_ratio')
-        self.forcing_decay      = conf.get('train:forcing_decay')
-        self.rl_transit_epoch   = conf.get('train:rl_transit_epoch')
-        self.rl_transit_decay   = conf.get('train:rl_transit_decay')
-        self.clip_gradient_max_norm  = conf.get('train:clip_gradient_max_norm')
-        self.log_batch          = conf.get('train:log_batch')
+        self.forcing_ratio      = conf.get('train:forcing-ratio')
+        self.forcing_decay      = conf.get('train:forcing-decay')
+        self.rl_transit_epoch   = conf.get('train:rl-transit-epoch')
+        self.rl_transit_decay   = conf.get('train:rl-transit-decay')
+        self.clip_gradient_max_norm  = conf.get('train:clip-gradient-max-norm')
+        self.log_batch          = conf.get('train:log-batch')
         self.hidden_size        = conf.get('hidden-size')
+        self.lr                 = conf.get('train:lr')
+        self.lr_decay_epoch     = conf.get('train:lr-decay-epoch')
+
 
         self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
         #self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
@@ -31,11 +35,15 @@ class Train(object):
         self.seq2seq = cuda(Seq2Seq(self.vocab))
         #self.seq2seq = cuda(Seq2Seq(self.vocab, GloveEmbedding(FileUtil.get_file_path(conf.get('train:emb-file')))))
 
+        #self.seq2seq.init_weight()
+
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
         self.dataloader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')), FileUtil.get_file_path(conf.get('train:summary-file')), conf.get('train:batch-size'))
 
-        self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=conf.get('train:learning_rate'))
+        self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=self.lr)
+
+        self.criterion = nn.CrossEntropyLoss(reduction='none', ignore_index=TK_PADDING['id'])
 
     def train_batch(self, batch, epoch_counter):
         self.optimizer.zero_grad()
@@ -66,8 +74,8 @@ class Train(object):
             sample_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, True)
 
             # greedy search
-            with t.autograd.no_grad():
-                baseline_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, False)
+            #with t.autograd.no_grad():
+            baseline_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, False)
 
             # convert decoded output to string
 
@@ -127,13 +135,11 @@ class Train(object):
         pre_dec_hiddens     = None  # B, T, 2H
         stop_decoding_mask  = cuda(t.zeros(batch_size))     # B
         max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
-        enc_ctx_vector      = cuda(t.zeros(batch_size, 2 * self.hidden_size))
 
         for i in range(target_y.size(1)):
             # decoding
             vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.seq2seq.decode(
                 dec_input,
-                enc_ctx_vector,
                 dec_hidden,
                 dec_cell,
                 pre_dec_hiddens,
@@ -142,14 +148,16 @@ class Train(object):
                 extend_vocab,
                 max_ovv_len)
 
+            # loss
+            step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
+
+            loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
+
+            vocab_dist = f.softmax(vocab_dist, dim=1)
+
             _, dec_output = t.max(vocab_dist, dim=1)
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
-
-            # loss
-            step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING['id'])  # B
-
-            loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
 
             # masking decoding
 
@@ -189,13 +197,11 @@ class Train(object):
         stop_decoding_mask  = cuda(t.zeros(batch_size))
         dec_len             = self.max_dec_steps if target_y is None else target_y.size(1)
         max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
-        enc_ctx_vector      = cuda(t.zeros(batch_size, 2 * self.hidden_size))
 
         for i in range(dec_len):
             # decoding
             vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.seq2seq.decode(
                 dec_input,
-                enc_ctx_vector,
                 dec_hidden,
                 dec_cell,
                 pre_dec_hiddens,
@@ -206,15 +212,17 @@ class Train(object):
 
             # sampling
             if sampling:
-                sampling_dist = Categorical(vocab_dist)
+                sampling_dist = Categorical(f.softmax(vocab_dist, dim=1))
                 dec_output = sampling_dist.sample()
 
                 step_loss = sampling_dist.log_prob(dec_output)
             else:
+                step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
+
+                vocab_dist = f.softmax(vocab_dist, dim=1)
+
                 # greedy search
                 _, dec_output = t.max(vocab_dist, dim=1)
-
-                step_loss = f.nll_loss(t.log(vocab_dist + 1e-12), target_y[:, i], reduction='none', ignore_index=TK_PADDING['id'])  # B
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
@@ -238,6 +246,8 @@ class Train(object):
         config_dump = conf.dump()
         logger.debug('configuration: \n' + config_dump.strip())
 
+        criterion_scheduler = self.get_lr_scheduler(self.optimizer, self.lr_decay_epoch)
+
         for i in range(self.epoch):
             logger.debug('================= Epoch %i/%i =================', i + 1, self.epoch)
 
@@ -247,6 +257,8 @@ class Train(object):
             total_ml_loss = 0
             total_rl_loss = 0
             total_samples_award = 0
+
+            criterion_scheduler.step()
 
             while True:
                 # get next batch
@@ -305,6 +317,11 @@ class Train(object):
         summary = self.seq2seq.summarize(article)
 
         print(summary)
+
+    def get_lr_scheduler(self, optimizer, lr_decay_epoch):
+        lr_lambda = lambda epoch: 0.9 ** (epoch // lr_decay_epoch)
+
+        return t.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
 
 if __name__ == "__main__":

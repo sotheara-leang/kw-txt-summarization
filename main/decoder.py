@@ -8,12 +8,12 @@ class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
 
-        emb_size = conf.get('emb-size')
-        hidden_size = conf.get('hidden-size')
+        self.lstm = nn.LSTMCell(conf.get('emb-size'), 2 * conf.get('hidden-size'))
 
-        self.combine_x = nn.Linear(2 * hidden_size + emb_size, emb_size)
-
-        self.lstm = nn.LSTMCell(emb_size, 2 * hidden_size)
+    def init_weight(self):
+        for name, param in self.lstm.state_dict().items():
+            if 'weight' in name:
+                nn.init.xavier_normal_(param)
 
     '''
         :params
@@ -24,11 +24,6 @@ class Decoder(nn.Module):
             hidden          : B, 2H
             cell            : B, 2H   
     '''
-    def forward(self, y, pre_hidden, pre_cell, enc_ctx_vector):
-        x = t.cat([y, enc_ctx_vector], dim=1)
-
-        x = self.combine_x(x)
-
-        hidden, cell = self.lstm(x, (pre_hidden, pre_cell))  # B, 2H
-
+    def forward(self, y, pre_hidden, pre_cell):
+        hidden, cell = self.lstm(y, (pre_hidden, pre_cell))
         return hidden, cell

@@ -1,3 +1,6 @@
+from main.common.common import *
+
+
 TK_PADDING          = {'word': '[PAD]',     'id': 0}
 TK_UNKNOWN          = {'word': '[UNK]',     'id': 1}
 TK_START_DECODING   = {'word': '[START]',   'id': 2}
@@ -37,11 +40,14 @@ class Vocab(object):
         words = []
         for id_ in ids:
             w = self.id2word(id_)
-            
             if w is TK_UNKNOWN['word'] and oovs is not None:
                 oov_idx = id_ - self.size()
-                w = oovs[oov_idx]
-    
+                try:
+                    w = oovs[oov_idx]
+                except IndexError:
+                    logger.warn('word id not found in oov: ' + str(id_))
+                    w = TK_UNKNOWN['word']
+
             words.append(w)
         return words
 

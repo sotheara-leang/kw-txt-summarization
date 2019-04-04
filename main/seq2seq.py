@@ -17,8 +17,6 @@ class Seq2Seq(nn.Module):
         self.emb_size       = conf.get('emb-size')
         self.hidden_size    = conf.get('hidden-size')
         self.max_dec_steps  = conf.get('max-dec-steps')
-        self.forcing_ratio  = conf.get('train:forcing_ratio')
-        self.forcing_decay  = conf.get('train:forcing_decay')
 
         self.vocab = vocab
 
@@ -35,6 +33,19 @@ class Seq2Seq(nn.Module):
         self.vocab_gen = nn.Linear(6 * self.hidden_size, self.vocab.size())
 
         self.ptr_gen = nn.Linear(6 * self.hidden_size, 1)
+
+    def init_weight(self):
+        if isinstance(self.embedding, nn.Embedding):
+            nn.init.xavier_uniform_(self.embedding.state_dict()['weight'])
+
+        self.encoder.init_weight()
+        self.decoder.init_weight()
+
+        self.enc_att.init_weight()
+        self.dec_att.init_weight()
+
+        nn.init.xavier_normal_(self.vocab_gen.state_dict()['weight'])
+        nn.init.xavier_normal_(self.ptr_gen.state_dict()['weight'])
 
     '''
             :params
@@ -66,8 +77,6 @@ class Seq2Seq(nn.Module):
 
         y = None  # B, L
 
-        enc_ctx_vector = cuda(t.zeros(len(x), 2 * self.hidden_size))
-
         # stop decoding mask
         stop_dec_mask = cuda(t.zeros(len(x)))
 
@@ -77,7 +86,6 @@ class Seq2Seq(nn.Module):
             # decoding
             vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, _, enc_temporal_score = self.decode(
                 dec_input,
-                enc_ctx_vector,
                 dec_hidden,
                 dec_cell,
                 pre_dec_hiddens,
@@ -85,6 +93,8 @@ class Seq2Seq(nn.Module):
                 enc_temporal_score,
                 extend_vocab,
                 max_ovv_len)
+
+            vocab_dist = f.softmax(vocab_dist, dim=1)
 
             _, dec_output = t.max(vocab_dist, dim=1)  # B - word idx
 
@@ -122,7 +132,6 @@ class Seq2Seq(nn.Module):
             enc_temporal_score  :   B, L
     '''
     def decode(self, dec_input,
-               enc_ctx_vector,
                dec_hidden,
                dec_cell,
                pre_dec_hiddens,
@@ -135,7 +144,7 @@ class Seq2Seq(nn.Module):
         dec_input = self.embedding(dec_input)   # B, E
 
         # current hidden & cell
-        dec_hidden, dec_cell = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :], dec_cell, enc_ctx_vector)  # B, 2H
+        dec_hidden, dec_cell = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :], dec_cell)  # B, 2H
 
         # intra-temporal encoder attention
 
@@ -152,14 +161,15 @@ class Seq2Seq(nn.Module):
 
         combine_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
 
-        #ptr_gen = t.sigmoid(self.ptr_gen(combine_input))  # B, 1   disable to prevent problem of exploding gradient
+        ptr_gen = t.sigmoid(self.ptr_gen(combine_input))  # B, 1
         ptr_gen = self.ptr_gen(combine_input)  # B, 1
 
         ptr_dist = ptr_gen * enc_att  # B, L
 
         # vocab distribution
 
-        vocab_dist = f.softmax(self.vocab_gen(combine_input), dim=1)  # B, V
+        #vocab_dist = f.softmax(self.vocab_gen(combine_input), dim=1)  # B, V disable to prevent problem of exploding gradient
+        vocab_dist = self.vocab_gen(combine_input)  # B, V
         vocab_dist = (1 - ptr_gen) * vocab_dist  # B, V
 
         # final vocab distribution

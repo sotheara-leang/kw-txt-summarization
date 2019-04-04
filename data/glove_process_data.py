@@ -43,11 +43,41 @@ def generate_vocab(file_in, dir_out):
     vectors.flush()
 
 
+def count(file_in):
+    counter = 0
+    with open(file_in, 'r') as f:
+        for line in f:
+            counter += 1
+    return counter
+
+
+def extract_vocab(file_in, dir_out):
+    with open(file_in, 'r') as r, open(dir_out + '/vocab.txt', 'w') as w:
+        words = []
+        for line in r:
+            line = line.split()
+            word = line[0]
+
+            words.append(word)
+
+        for word in words:
+            w.write(word + '\n')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--opt', type=str, default='gen-vocab')
     parser.add_argument('--file_in', type=str)
     parser.add_argument('--dir_out', type=str, default='extract')
 
     args = parser.parse_args()
 
-    generate_vocab(args.file_in, args.dir_out)
+    opt = args.opt
+
+    if opt == 'count':
+        nb = count(args.file_in)
+        print(nb)
+    elif opt == 'extract-vocab':
+        extract_vocab(args.file_in, args.dir_out)
+    else:
+        generate_vocab(args.file_in, args.dir_out)
