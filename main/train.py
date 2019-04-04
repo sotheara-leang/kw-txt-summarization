@@ -16,32 +16,36 @@ from main.common.glove.embedding import GloveEmbedding
 class Train(object):
 
     def __init__(self):
-        self.epoch              = conf.get('train:epoch')
-        self.rl_weight          = conf.get('train:rl-weight')
-        self.forcing_ratio      = conf.get('train:forcing-ratio')
-        self.forcing_decay      = conf.get('train:forcing-decay')
-        self.rl_transit_epoch   = conf.get('train:rl-transit-epoch')
-        self.rl_transit_decay   = conf.get('train:rl-transit-decay')
-        self.clip_gradient_max_norm  = conf.get('train:clip-gradient-max-norm')
-        self.log_batch          = conf.get('train:log-batch')
-        self.hidden_size        = conf.get('hidden-size')
-        self.lr                 = conf.get('train:lr')
-        self.lr_decay_epoch     = conf.get('train:lr-decay-epoch')
+        self.epoch                      = conf.get('train:epoch')
+        self.batch_size                 = conf.get('train:batch-size')
+        self.clip_gradient_max_norm     = conf.get('train:clip-gradient-max-norm')
+        self.log_batch                  = conf.get('train:log-batch')
+        self.lr                         = conf.get('train:lr')
+        self.lr_decay_epoch             = conf.get('train:lr-decay-epoch')
+        self.lr_decay_rate              = conf.get('train:lr-decay-rate')
 
+        self.ml_enable                  = conf.get('train:ml:enable')
+        self.ml_forcing_ratio           = conf.get('train:ml:forcing-ratio')
+        self.ml_forcing_decay           = conf.get('train:ml:forcing-decay')
+
+        self.rl_enable                  = conf.get('train:rl:enable')
+        self.rl_weight                  = conf.get('train:rl:weight')
+        self.rl_transit_epoch           = conf.get('train:rl:transit-epoch')
+        self.rl_transit_decay           = conf.get('train:rl:transit-decay')
 
         self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
         #self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
         self.seq2seq = cuda(Seq2Seq(self.vocab))
         #self.seq2seq = cuda(Seq2Seq(self.vocab, GloveEmbedding(FileUtil.get_file_path(conf.get('train:emb-file')))))
-
         #self.seq2seq.init_weight()
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
-        self.dataloader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')), FileUtil.get_file_path(conf.get('train:summary-file')), conf.get('train:batch-size'))
+        self.dataLoader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
+                                         FileUtil.get_file_path(conf.get('train:summary-file')), self.batch_size)
 
-        self.optimizer = t.optim.Adagrad(self.seq2seq.parameters(), lr=self.lr)
+        self.optimizer = t.optim.Adam(self.seq2seq.parameters(), lr=self.lr)
 
         self.criterion = nn.CrossEntropyLoss(reduction='none', ignore_index=TK_PADDING['id'])
 
@@ -49,27 +53,34 @@ class Train(object):
         self.optimizer.zero_grad()
 
         rouge       = Rouge()
-        batch_size  = len(batch.articles_len)
-        dec_input   = cuda(t.tensor([TK_START_DECODING['id']] * batch_size))  # B
+        dec_input   = cuda(t.tensor([TK_START_DECODING['id']] * self.batch_size))  # B
+
+        ## encoding input
 
         x = self.seq2seq.embedding(batch.articles)  # B, L, E
 
         enc_outputs, (enc_hidden, enc_cell) = self.seq2seq.encoder(x, batch.articles_len)  # (B, L, 2H), (B, 2H)
 
-        # ML
-        output = self.train_ml(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab, batch.summaries, epoch_counter)
+        ## ML
 
-        ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
-        ml_loss = t.mean(ml_loss)
+        if self.ml_enable:
+            output = self.train_ml(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab, batch.summaries, epoch_counter)
 
-        # transit reinforced learning
-
-        if self.rl_transit_epoch >= 0:
-            enable_rl = epoch_counter == self.rl_transit_epoch
+            ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
+            ml_loss = t.mean(ml_loss)
         else:
-            enable_rl = max(0, 1 - self.rl_transit_decay * epoch_counter) == 0
+            ml_loss = cuda(t.zeros(1))
 
-        if enable_rl:
+        ## RL
+
+        rl_enable = self.rl_enable
+        if rl_enable:
+            if self.rl_transit_epoch >= 0:
+                rl_enable = epoch_counter == self.rl_transit_epoch
+            else:
+                rl_enable = max(0, 1 - self.rl_transit_decay * epoch_counter) == 0
+
+        if rl_enable:
             # sampling
             sample_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, True)
 
@@ -108,14 +119,13 @@ class Train(object):
             # reward
 
             reward = t.mean(sample_scores - baseline_scores)
-
         else:
             rl_loss = cuda(t.zeros(1))
             reward = 0
 
-        # total loss
+        ## total loss
 
-        rl_weight = self.rl_weight if enable_rl else 0
+        rl_weight = self.rl_weight if rl_enable else 0
 
         loss = rl_weight * rl_loss + (1 - rl_weight) * ml_loss
 
@@ -125,19 +135,18 @@ class Train(object):
 
         self.optimizer.step()
 
-        return loss, ml_loss, rl_loss, reward, enable_rl
+        return loss, ml_loss, rl_loss, reward, rl_enable
 
     def train_ml(self, enc_outputs, dec_hidden, dec_cell, dec_input, extend_vocab, target_y, epoch_counter):
-        batch_size          = len(enc_outputs)
         y                   = None  # B, T
         loss                = None  # B, T
         enc_temporal_score  = None
         pre_dec_hiddens     = None  # B, T, 2H
-        stop_decoding_mask  = cuda(t.zeros(batch_size))     # B
+        stop_decoding_mask  = cuda(t.zeros(self.batch_size))     # B
         max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
 
         for i in range(target_y.size(1)):
-            # decoding
+            ## decoding
             vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.seq2seq.decode(
                 dec_input,
                 dec_hidden,
@@ -148,10 +157,12 @@ class Train(object):
                 extend_vocab,
                 max_ovv_len)
 
-            # loss
+            ## loss
             step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
+
+            ## output
 
             vocab_dist = f.softmax(vocab_dist, dim=1)
 
@@ -159,47 +170,43 @@ class Train(object):
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
-            # masking decoding
+            ## masking decoding
 
             stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING['id']) == 2] = 1
 
             if len(stop_decoding_mask[stop_decoding_mask == 1]) == len(stop_decoding_mask):
                 break
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+            ## teacher forcing
 
-            # teacher forcing
+            forcing_ratio = max(0, self.ml_forcing_ratio - self.ml_forcing_decay * epoch_counter)
 
-            if self.forcing_ratio == 1:
-                dec_input = target_y[:, i]
-            else:
-                forcing_ratio = max(0, self.forcing_ratio - self.forcing_decay * epoch_counter)
+            use_ground_truth = t.randn(self.batch_size) < forcing_ratio  # B
+            use_ground_truth = cuda(use_ground_truth.long())
 
-                use_ground_truth = t.randn(batch_size) < forcing_ratio  # B
-                use_ground_truth = cuda(use_ground_truth.long())
+            dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output  # B
 
-                dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output  # B
-
-            # if next input is oov, change it to UNKNOWN_TOKEN
+            ## if next decoder input is oov, change it to UNKNOWN_TOKEN
 
             is_oov = (dec_input >= self.vocab.size()).long()
 
             dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN['id']
 
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+
         return y, loss
 
     def train_rl(self, enc_outputs, dec_hidden, dec_cell, dec_input, target_y, extend_vocab, sampling):
-        batch_size          = len(enc_outputs)
         y                   = None  # B, T
         loss                = None  # B, T
         enc_temporal_score  = None
         pre_dec_hiddens     = None  # B, T, 2H
-        stop_decoding_mask  = cuda(t.zeros(batch_size))
+        stop_decoding_mask  = cuda(t.zeros(self.batch_size))
         dec_len             = self.max_dec_steps if target_y is None else target_y.size(1)
         max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
 
         for i in range(dec_len):
-            # decoding
+            ## decoding
             vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score = self.seq2seq.decode(
                 dec_input,
                 dec_hidden,
@@ -210,59 +217,67 @@ class Train(object):
                 extend_vocab,
                 max_ovv_len)
 
-            # sampling
+            ## sampling
             if sampling:
-                sampling_dist = Categorical(f.softmax(vocab_dist, dim=1))
+                vocab_dist = f.softmax(vocab_dist, dim=1)
+
+                sampling_dist = Categorical(vocab_dist, dim=1)
                 dec_output = sampling_dist.sample()
 
                 step_loss = sampling_dist.log_prob(dec_output)
             else:
+                ## greedy search
                 step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
 
-                vocab_dist = f.softmax(vocab_dist, dim=1)
+                _, dec_output = t.max(f.softmax(vocab_dist, dim=1), dim=1)
 
-                # greedy search
-                _, dec_output = t.max(vocab_dist, dim=1)
+            ## y & loss
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
 
+            ## masking decoding
+
             stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING['id']) == 2] = 1
 
-            # stop when all masks are 1
             if len(stop_decoding_mask[stop_decoding_mask == 1]) == len(stop_decoding_mask):
                 break
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
-
             dec_input = dec_output
+
+            ## if next decoder input is oov, change it to UNKNOWN_TOKEN
+
+            is_oov = (dec_input >= self.vocab.size()).long()
+
+            dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN['id']
+
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
         return y, loss
 
     def run(self):
         self.seq2seq.train()
 
-        config_dump = conf.dump()
-        logger.debug('configuration: \n' + config_dump.strip())
+        logger.debug('configuration: \n' + conf.dump().strip())
 
-        criterion_scheduler = self.get_lr_scheduler(self.optimizer, self.lr_decay_epoch)
+        criterion_scheduler = self.get_lr_scheduler(self.optimizer)
 
         for i in range(self.epoch):
             logger.debug('================= Epoch %i/%i =================', i + 1, self.epoch)
 
-            batch_counter = 1
+            batch_counter       = 1
 
-            total_loss = 0
-            total_ml_loss = 0
-            total_rl_loss = 0
+            total_loss          = 0
+            total_ml_loss       = 0
+            total_rl_loss       = 0
             total_samples_award = 0
 
             criterion_scheduler.step()
 
             while True:
                 # get next batch
-                batch = self.dataloader.next()
+                batch = self.dataLoader.next()
 
                 if batch is None:
                     break
@@ -280,34 +295,29 @@ class Train(object):
                     else:
                         logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=NA', batch_counter, loss, ml_loss)
 
-                total_loss += loss
-                total_ml_loss += ml_loss
-                total_rl_loss += rl_loss
+                total_loss          += loss
+                total_ml_loss       += ml_loss
+                total_rl_loss       += rl_loss
                 total_samples_award += samples_reward
 
-                batch_counter = batch_counter + 1
+                batch_counter       += 1
 
-            loss_avg = total_loss / batch_counter
-            ml_loss_avg = total_ml_loss / batch_counter
-            rl_loss_avg = total_rl_loss / batch_counter
-            samples_reward_avg = total_samples_award / batch_counter
-
-            logger.debug('loss_avg\t=\t%.3f', loss_avg)
-            logger.debug('ml-loss-avg\t=\t%.3f', ml_loss_avg)
+            logger.debug('loss_avg\t=\t%.3f', total_loss / batch_counter)
+            logger.debug('ml-loss-avg\t=\t%.3f', total_ml_loss / batch_counter)
             if enable_rl:
-                logger.debug('rl-loss_avg\t=\t%.3f,\t reward=%.3f', rl_loss_avg, samples_reward_avg)
+                logger.debug('rl-loss_avg\t=\t%.3f,\t reward=%.3f',
+                             total_rl_loss / batch_counter, total_samples_award / batch_counter)
             else:
                 logger.debug('rl-loss_avg\t=\tNA')
 
-            #
-            self.dataloader.reset()
+            self.dataLoader.reset()
 
         # save model
-        model_path = FileUtil.get_file_path(conf.get('train:model-file'))
+        model_path = FileUtil.get_file_path(conf.get('train:save-model-file'))
 
         logger.debug('save model into : ' + model_path)
 
-        t.save(self.seq2seq.state_dict(), FileUtil.get_file_path(conf.get('train:model-file')))
+        t.save(self.seq2seq.state_dict(), model_path)
 
     def evaluate(self):
         self.seq2seq.eval()
@@ -318,8 +328,8 @@ class Train(object):
 
         print(summary)
 
-    def get_lr_scheduler(self, optimizer, lr_decay_epoch):
-        lr_lambda = lambda epoch: 0.9 ** (epoch // lr_decay_epoch)
+    def get_lr_scheduler(self, optimizer):
+        lr_lambda = lambda epoch: self.lr_decay_rate ** (epoch // self.lr_decay_epoch)
 
         return t.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
@@ -327,5 +337,4 @@ class Train(object):
 if __name__ == "__main__":
     train = Train()
     train.run()
-
     train.evaluate()

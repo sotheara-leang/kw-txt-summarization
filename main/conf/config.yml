@@ -8,19 +8,27 @@ vocab-file: data/train/vocab.bin
 model-file: data/train/model.ckpt
 
 train:
-  lr: 0.01
-  lr-decay-epoch: 25
-  clip-gradient-max-norm: 1
-  forcing-ratio: 0.90
-  forcing-decay: 0.05
-  rl-transit-epoch: -1
-  rl-transit-decay: 0
-  rl-weight: 0.7
   epoch: 75
   batch-size: 20
   log-batch: false
+  clip-gradient-max-norm: 1
+
+  lr: 0.01
+  lr-decay-rate: 0.9
+  lr-decay-epoch: 25
+
+  ml:
+    enable: true
+    forcing-ratio: 0.90
+    forcing-decay: 0.05
+  rl:
+    enable: false
+    transit-epoch: -1
+    transit-decay: 0
+    weight: 0.9984
+
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt
   vocab-file: data/train/vocab.bin
   emb-file: data/extract/embedding
-  model-file: data/train/model.ckpt
+  save-model-file: data/train/model.ckpt
