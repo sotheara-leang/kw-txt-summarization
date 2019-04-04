@@ -22,7 +22,7 @@ class Train(object):
         self.log_batch                  = conf.get('train:log-batch')
         self.lr                         = conf.get('train:lr')
         self.lr_decay_epoch             = conf.get('train:lr-decay-epoch')
-        self.lr_decay_rate              = conf.get('train:lr-decay-rate')
+        self.lr_decay                   = conf.get('train:lr-decay')
 
         self.ml_enable                  = conf.get('train:ml:enable')
         self.ml_forcing_ratio           = conf.get('train:ml:forcing-ratio')
@@ -329,7 +329,7 @@ class Train(object):
         print(summary)
 
     def get_lr_scheduler(self, optimizer):
-        lr_lambda = lambda epoch: self.lr_decay_rate ** (epoch // self.lr_decay_epoch)
+        lr_lambda = lambda epoch: self.lr_decay ** (epoch // self.lr_decay_epoch)
 
         return t.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 

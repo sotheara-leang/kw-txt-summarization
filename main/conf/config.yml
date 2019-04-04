@@ -14,7 +14,7 @@ train:
   clip-gradient-max-norm: 1
 
   lr: 0.01
-  lr-decay-rate: 0.9
+  lr-decay: 0.9
   lr-decay-epoch: 25
 
   ml:
