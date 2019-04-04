@@ -152,7 +152,8 @@ class Seq2Seq(nn.Module):
 
         combine_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
 
-        ptr_gen = t.sigmoid(self.ptr_gen(combine_input))  # B, 1
+        #ptr_gen = t.sigmoid(self.ptr_gen(combine_input))  # B, 1   disable to prevent problem of exploding gradient
+        ptr_gen = self.ptr_gen(combine_input)  # B, 1
 
         ptr_dist = ptr_gen * enc_att  # B, L
 

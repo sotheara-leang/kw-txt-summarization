@@ -25,11 +25,11 @@ class Train(object):
         self.log_batch          = conf.get('train:log_batch')
         self.hidden_size        = conf.get('hidden-size')
 
-        #self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
-        self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
+        self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
+        #self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
-        #self.seq2seq = cuda(Seq2Seq(self.vocab))
-        self.seq2seq = cuda(Seq2Seq(self.vocab, GloveEmbedding(FileUtil.get_file_path(conf.get('train:emb-file')))))
+        self.seq2seq = cuda(Seq2Seq(self.vocab))
+        #self.seq2seq = cuda(Seq2Seq(self.vocab, GloveEmbedding(FileUtil.get_file_path(conf.get('train:emb-file')))))
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
@@ -239,7 +239,7 @@ class Train(object):
         logger.debug('configuration: \n' + config_dump.strip())
 
         for i in range(self.epoch):
-            logger.debug('============ Epoch %i/%i ============', i + 1, self.epoch)
+            logger.debug('================= Epoch %i/%i =================', i + 1, self.epoch)
 
             batch_counter = 1
 
@@ -280,7 +280,7 @@ class Train(object):
             rl_loss_avg = total_rl_loss / batch_counter
             samples_reward_avg = total_samples_award / batch_counter
 
-            logger.debug('loss_avg\t\t=\t%.3f', loss_avg)
+            logger.debug('loss_avg\t=\t%.3f', loss_avg)
             logger.debug('ml-loss-avg\t=\t%.3f', ml_loss_avg)
             if enable_rl:
                 logger.debug('rl-loss_avg\t=\t%.3f,\t reward=%.3f', rl_loss_avg, samples_reward_avg)
