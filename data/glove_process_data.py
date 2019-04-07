@@ -37,7 +37,7 @@ def generate_vocab(file_in, dir_out):
         'id2word': id2word
     }
 
-    pickle.dump(vocab, open(dir_out + '/vocab.bin', 'wb'))
+    pickle.dump(vocab, open(dir_out + '/giga-vocab.bin', 'wb'))
 
     vectors = bcolz.carray(vectors[1:].reshape(-1, vector.shape[0]), rootdir=dir_out + '/embedding', mode='w')
     vectors.flush()

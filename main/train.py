@@ -33,12 +33,12 @@ class Train(object):
         self.rl_transit_epoch           = conf.get('train:rl:transit-epoch')
         self.rl_transit_decay           = conf.get('train:rl:transit-decay')
 
-        self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
+        self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('train:vocab-file')), conf.get('vocab-size'))
         #self.vocab = GloveVocab(FileUtil.get_file_path(conf.get('train:vocab-file')))
 
         self.seq2seq = cuda(Seq2Seq(self.vocab))
+
         #self.seq2seq = cuda(Seq2Seq(self.vocab, GloveEmbedding(FileUtil.get_file_path(conf.get('train:emb-file')))))
-        #self.seq2seq.init_weight()
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
@@ -85,8 +85,8 @@ class Train(object):
             sample_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, True)
 
             # greedy search
-            #with t.autograd.no_grad():
-            baseline_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, False)
+            with t.autograd.no_grad():
+                baseline_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, False)
 
             # convert decoded output to string
 
@@ -143,7 +143,7 @@ class Train(object):
         enc_temporal_score  = None
         pre_dec_hiddens     = None  # B, T, 2H
         stop_decoding_mask  = cuda(t.zeros(self.batch_size))     # B
-        max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
+        max_ovv_len         = max([len(vocab) for vocab in extend_vocab])
 
         for i in range(target_y.size(1)):
             ## decoding
@@ -158,13 +158,12 @@ class Train(object):
                 max_ovv_len)
 
             ## loss
+
             step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
 
             ## output
-
-            vocab_dist = f.softmax(vocab_dist, dim=1)
 
             _, dec_output = t.max(vocab_dist, dim=1)
 
@@ -203,7 +202,7 @@ class Train(object):
         pre_dec_hiddens     = None  # B, T, 2H
         stop_decoding_mask  = cuda(t.zeros(self.batch_size))
         dec_len             = self.max_dec_steps if target_y is None else target_y.size(1)
-        max_ovv_len         = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
+        max_ovv_len         = max([len(vocab) for vocab in extend_vocab])
 
         for i in range(dec_len):
             ## decoding
@@ -219,8 +218,6 @@ class Train(object):
 
             ## sampling
             if sampling:
-                vocab_dist = f.softmax(vocab_dist, dim=1)
-
                 sampling_dist = Categorical(vocab_dist, dim=1)
                 dec_output = sampling_dist.sample()
 
@@ -229,7 +226,7 @@ class Train(object):
                 ## greedy search
                 step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
 
-                _, dec_output = t.max(f.softmax(vocab_dist, dim=1), dim=1)
+                _, dec_output = t.max(vocab_dist, dim=1)
 
             ## y & loss
 
@@ -266,7 +263,7 @@ class Train(object):
         for i in range(self.epoch):
             logger.debug('================= Epoch %i/%i =================', i + 1, self.epoch)
 
-            batch_counter       = 1
+            batch_counter       = 0
 
             total_loss          = 0
             total_ml_loss       = 0
@@ -276,8 +273,9 @@ class Train(object):
             criterion_scheduler.step()
 
             while True:
+
                 # get next batch
-                batch = self.dataLoader.next()
+                batch = self.dataLoader.next_batch()
 
                 if batch is None:
                     break
@@ -322,7 +320,7 @@ class Train(object):
     def evaluate(self):
         self.seq2seq.eval()
 
-        article = 'south korea on monday announced sweeping tax reforms , including income and corporate tax cuts to boost growth by stimulating sluggish private consumption and business investment .'
+        article, _ = self.dataLoader.next()
 
         summary = self.seq2seq.summarize(article)
 

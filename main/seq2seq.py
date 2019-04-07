@@ -34,19 +34,6 @@ class Seq2Seq(nn.Module):
 
         self.ptr_gen = nn.Linear(6 * self.hidden_size, 1)
 
-    def init_weight(self):
-        if isinstance(self.embedding, nn.Embedding):
-            nn.init.xavier_uniform_(self.embedding.state_dict()['weight'])
-
-        self.encoder.init_weight()
-        self.decoder.init_weight()
-
-        self.enc_att.init_weight()
-        self.dec_att.init_weight()
-
-        nn.init.xavier_normal_(self.vocab_gen.state_dict()['weight'])
-        nn.init.xavier_normal_(self.ptr_gen.state_dict()['weight'])
-
     '''
             :params
                 x               : B, L
@@ -80,7 +67,7 @@ class Seq2Seq(nn.Module):
         # stop decoding mask
         stop_dec_mask = cuda(t.zeros(len(x)))
 
-        max_ovv_len = max([idx for vocab in extend_vocab for idx in vocab if idx == TK_UNKNOWN['id']] + [0] * len(extend_vocab))
+        max_ovv_len = max([len(vocab) for vocab in extend_vocab])
 
         for i in range(self.max_dec_steps):
             # decoding
@@ -162,14 +149,12 @@ class Seq2Seq(nn.Module):
         combine_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
 
         ptr_gen = t.sigmoid(self.ptr_gen(combine_input))  # B, 1
-        ptr_gen = self.ptr_gen(combine_input)  # B, 1
 
         ptr_dist = ptr_gen * enc_att  # B, L
 
         # vocab distribution
 
-        #vocab_dist = f.softmax(self.vocab_gen(combine_input), dim=1)  # B, V disable to prevent problem of exploding gradient
-        vocab_dist = self.vocab_gen(combine_input)  # B, V
+        vocab_dist = f.softmax(self.vocab_gen(combine_input), dim=1)  # B, V disable to prevent problem of exploding gradient
         vocab_dist = (1 - ptr_gen) * vocab_dist  # B, V
 
         # final vocab distribution

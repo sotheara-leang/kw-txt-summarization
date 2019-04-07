@@ -10,9 +10,6 @@ class EncoderAttention(nn.Module):
 
         self.attn = nn.Bilinear(2 * conf.get('hidden-size'), 2 * conf.get('hidden-size'), 1, False)
 
-    def init_weight(self):
-        nn.init.xavier_normal_(self.attn.state_dict()['weight'])
-
     '''
         :params
             dec_hidden          : B, 2H
@@ -34,7 +31,7 @@ class EncoderAttention(nn.Module):
         exp_score = t.exp(score)    # B, L
         if enc_temporal_score is None:
             score = exp_score
-            enc_temporal_score = exp_score
+            enc_temporal_score = cuda(t.zeros(score.size()).fill_(1e-10)) + exp_score
         else:
             score = exp_score / enc_temporal_score
             enc_temporal_score = enc_temporal_score + exp_score
@@ -42,11 +39,11 @@ class EncoderAttention(nn.Module):
         # normalization
 
         normalization_factor = score.sum(1, keepdim=True)   # B, L
-        att_dist = score / normalization_factor             # B, L
+        attention = score / normalization_factor  # B, L
 
         # context vector
 
-        ctx_vector = t.bmm(att_dist.unsqueeze(1), enc_hiddens)  # B, 1, L * B, L, 2H  =>  B, 1, 2H
+        ctx_vector = t.bmm(attention.unsqueeze(1), enc_hiddens)  # B, 1, L * B, L, 2H  =>  B, 1, 2H
         ctx_vector = ctx_vector.squeeze(1)  # B, 2*H
 
-        return ctx_vector, att_dist, enc_temporal_score
+        return ctx_vector, attention, enc_temporal_score

@@ -12,9 +12,6 @@ class DecoderAttention(nn.Module):
 
         self.attn = nn.Bilinear(2 * conf.get('hidden-size'), 2 * conf.get('hidden-size'), 1, False)
 
-    def init_weight(self):
-        nn.init.xavier_normal_(self.attn.state_dict()['weight'])
-
     '''
         :params
             dec_hidden          : B, 2H

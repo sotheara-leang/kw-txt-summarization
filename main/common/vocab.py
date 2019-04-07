@@ -9,59 +9,76 @@ TK_STOP_DECODING    = {'word': '[STOP]',    'id': 3}
 
 class Vocab(object):
 
-    def __init__(self, word2id, id2word, id2vector):
+    def __init__(self, word2id, id2word):
         self._word2id = word2id
         self._id2word = id2word
-        self._id2vector = id2vector
 
     def word2id(self, word):
         if word not in self._word2id:
-            return TK_UNKNOWN['id']
+            return None
         return self._word2id[word]
 
     def id2word(self, word_id):
         if word_id not in self._id2word:
-            return TK_UNKNOWN['word']
+            return None
         return self._id2word[word_id]
 
     def size(self):
         return len(self._word2id)
 
     def id_exists(self, word_id):
-        return True if self.id2word(word_id) == TK_UNKNOWN['word'] else False
+        return False if self.id2word(word_id) is None else True
 
     def word_exists(self, word):
-        return True if self.word2id(word) == TK_UNKNOWN['id'] else False
+        return False if self.word2id(word) is None else True
 
-    def words2ids(self, words):
-        return [self.word2id(w) for w in words]
+    def words2ids(self, words, oovs=None):
+        ids_ = []
+        for w in words:
+            id_ = self.word2id(w)
+            if id_ is None:
+                if oovs is not None and len(oovs) > 0:
+                    try:
+                        id_ = self.size() + oovs.index(w)
+                    except ValueError:
+                        #logger.warning('word ￿"%s￿" not found in %s', w, oovs)
+                        id_ = TK_UNKNOWN['id']
+                else:
+                    id_ = TK_UNKNOWN['id']
+
+            ids_.append(id_)
+        return ids_
 
     def ids2words(self, ids, oovs=None):
         words = []
         for id_ in ids:
             w = self.id2word(id_)
-            if w is TK_UNKNOWN['word'] and oovs is not None:
-                oov_idx = id_ - self.size()
-                try:
-                    w = oovs[oov_idx]
-                except IndexError:
-                    logger.warn('word id not found in oov: ' + str(id_))
+            if w is None:
+                if oovs is not None and len(oovs) > 0:
+                    try:
+                        w = oovs[id_ - self.size()]
+                    except IndexError:
+                        logger.warning('word id ￿"%s" not found in %s' + str(id_), oovs)
+                        w = TK_UNKNOWN['word']
+                else:
                     w = TK_UNKNOWN['word']
 
             words.append(w)
         return words
 
-    def extend_words2ids(self, words, oovs=[]):
+    def extend_words2ids(self, words):
         ids = []
-        oovs_ = oovs
+        oovs = []
         for w in words:
             id_ = self.word2id(w)
-            if id_ == TK_UNKNOWN['id'] and w in oovs:
-                vocab_idx = self.size() + oovs.index(w)
-                id_ = vocab_idx   
-                
+            if id_ is None:
+                if w not in oovs:
+                    oovs.append(w)
+
+                id_ = self.size() + oovs.index(w)
+
             ids.append(id_)
-        return ids, oovs_
+        return ids, oovs
 
     def show_oovs(self, words, oovs: None):
         words = words.split(' ')

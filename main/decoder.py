@@ -10,11 +10,6 @@ class Decoder(nn.Module):
 
         self.lstm = nn.LSTMCell(conf.get('emb-size'), 2 * conf.get('hidden-size'))
 
-    def init_weight(self):
-        for name, param in self.lstm.state_dict().items():
-            if 'weight' in name:
-                nn.init.xavier_normal_(param)
-
     '''
         :params
             y               : B, E
