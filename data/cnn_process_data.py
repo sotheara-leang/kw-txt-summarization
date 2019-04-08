@@ -1,6 +1,7 @@
 import argparse
 import os
 import collections
+import re
 
 ptb_unescape = {'-lrb-': '(', '-rrb-': ')', '-lcb-': '{', '-rcb-': '}', '<t>': '', '</t>': ''}
 
@@ -44,12 +45,12 @@ def generate_vocab(files_in, dir_out, vocab_fname, max_vocab):
         if reach_max_vocab is True:
             break
 
-    output_fname = 'vocab.bin￿' if vocab_fname is None else vocab_fname
+    output_fname = 'vocab.bin' if vocab_fname is None else vocab_fname
 
     # write vocab
     with open(dir_out + '/' + output_fname, 'w') as writer:
         for i, token in enumerate(vocab_counter):
-            if i >= max_vocab:
+            if max_vocab > 0 and i >= max_vocab:
                 break
 
             count = vocab_counter[token]

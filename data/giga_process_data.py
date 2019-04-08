@@ -52,21 +52,20 @@ def chunk_samples(file_in, dir_out, chunk_size):
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
 
-    with open(file_in, 'r') as reader:
-        counter = 0
-        sindex = 0
-        eindex = chunk_size
+    counter = 0
+    sindex = 0
+    eindex = chunk_size
 
-        while True:
-            extract_file_name = file_in + '_' + str(counter + 1)
+    while True:
+        extract_file_name = file_in + '_' + str(counter + 1)
 
-            eof = extract_samples(file_in, sindex, eindex, extract_file_name)
-            if eof is True:
-                break
+        eof = extract_samples(file_in, sindex, eindex, extract_file_name)
+        if eof is True:
+            break
 
-            sindex = eindex + 1
-            eindex = sindex + chunk_size
-            counter += 1
+        sindex = eindex + 1
+        eindex = sindex + chunk_size
+        counter += 1
 
 
 def generate_vocab(files_in, dir_out, vocab_fname, max_vocab):
@@ -104,7 +103,7 @@ def generate_vocab(files_in, dir_out, vocab_fname, max_vocab):
         if reach_max_vocab is True:
             break
 
-    output_fname = 'vocab.bin￿' if vocab_fname is None else vocab_fname
+    output_fname = 'vocab.bin' if vocab_fname is None else vocab_fname
 
     with open(dir_out + '/' + output_fname, 'w') as writer:
         for i, token in enumerate(vocab_counter):

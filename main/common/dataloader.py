@@ -6,14 +6,14 @@ class DataLoader(object):
         self.generator = self.reader()
 
     def reader(self):
-        pass
+        raise NotImplementedError
 
-    def next(self):
+    def next_batch(self):
         samples = []
         for i in range(0, self.batch_size):
             try:
                 sample = next(self.generator)
-            except Exception:
+            except StopIteration:
                 return None
 
             if sample is None:
@@ -21,6 +21,12 @@ class DataLoader(object):
             samples.append(sample)
 
         return samples
+
+    def next(self):
+        try:
+            return next(self.generator)
+        except StopIteration:
+            return None
 
     def reset(self):
         self.generator = self.reader()

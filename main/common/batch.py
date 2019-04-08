@@ -59,7 +59,7 @@ class BatchInitializer(object):
             if len(summary_words) > self.max_enc_steps:  # truncate
                 summary_words = summary_words[:self.max_enc_steps]
 
-            enc_summary, _ = self.vocab.extend_words2ids(summary_words, oovs)
+            enc_summary = self.vocab.words2ids(summary_words, oovs)
             enc_summary = enc_summary + [TK_STOP_DECODING['id']]
             enc_summary += [TK_PADDING['id']] * (max_summary_len - len(enc_summary))
 

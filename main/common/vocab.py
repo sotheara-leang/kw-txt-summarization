@@ -41,7 +41,6 @@ class Vocab(object):
                     try:
                         id_ = self.size() + oovs.index(w)
                     except ValueError:
-                        #logger.warning('word ￿"%s￿" not found in %s', w, oovs)
                         id_ = TK_UNKNOWN['id']
                 else:
                     id_ = TK_UNKNOWN['id']
@@ -58,7 +57,7 @@ class Vocab(object):
                     try:
                         w = oovs[id_ - self.size()]
                     except IndexError:
-                        logger.warning('word id ￿"%s" not found in %s' + str(id_), oovs)
+                        logger.warning('word id "%s" not found in %s' + str(id_), oovs)
                         w = TK_UNKNOWN['word']
                 else:
                     w = TK_UNKNOWN['word']
