@@ -48,26 +48,6 @@ def extract_samples(file_in, start_index, end_index, dir_out):
     return eof
 
 
-def chunk_samples(file_in, dir_out, chunk_size):
-    if not os.path.exists(dir_out):
-        os.makedirs(dir_out)
-
-    counter = 0
-    sindex = 0
-    eindex = chunk_size
-
-    while True:
-        extract_file_name = file_in + '_' + str(counter + 1)
-
-        eof = extract_samples(file_in, sindex, eindex, extract_file_name)
-        if eof is True:
-            break
-
-        sindex = eindex + 1
-        eindex = sindex + chunk_size
-        counter += 1
-
-
 def generate_vocab(files_in, dir_out, vocab_fname, max_vocab):
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
@@ -103,7 +83,7 @@ def generate_vocab(files_in, dir_out, vocab_fname, max_vocab):
         if reach_max_vocab is True:
             break
 
-    output_fname = 'vocab.bin' if vocab_fname is None else vocab_fname
+    output_fname = 'vocab.txt' if vocab_fname is None else vocab_fname
 
     with open(dir_out + '/' + output_fname, 'w') as writer:
         for i, token in enumerate(vocab_counter):
@@ -119,7 +99,7 @@ def normalize_string(string):
 
 
 def valid_vocab(string):
-    return string != '' and re.match('^([a-z]+)|([a-z]+-[a-z]+)|[\'\"(),.?!]$', string)
+    return string != '' and re.match('^([a-z]+)|[a-z]+(-[a-z]+)+|[\'\"(),.?!]|\'(a-z)+$', string)
 
 
 if __name__ == '__main__':
@@ -131,14 +111,11 @@ if __name__ == '__main__':
     parser.add_argument('--max_vocab', type=int, default="-1")
     parser.add_argument('--sindex', type=int, default="0")
     parser.add_argument('--eindex', type=int, default="999")
-    parser.add_argument('--chunk_size', type=int, default="20000")
-    parser.add_argument('--vocab_fname', type=str, default="vocab.bin")
+    parser.add_argument('--vocab_fname', type=str, default="vocab.txt")
 
     args = parser.parse_args()
 
-    if args.opt == 'chunk':
-        chunk_samples(args.file[0], args.chunk_size)
-    elif args.opt == 'gen-vocab':
+    if args.opt == 'gen-vocab':
         generate_vocab(args.file, args.dir_out, args.vocab_fname, args.max_vocab)
     elif args.opt == 'count':
         print(count_samples(args.file))

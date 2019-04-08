@@ -45,7 +45,7 @@ def generate_vocab(files_in, dir_out, vocab_fname, max_vocab):
         if reach_max_vocab is True:
             break
 
-    output_fname = 'vocab.bin' if vocab_fname is None else vocab_fname
+    output_fname = 'vocab.txt' if vocab_fname is None else vocab_fname
 
     # write vocab
     with open(dir_out + '/' + output_fname, 'w') as writer:
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_vocab', type=int, default="-1")
     parser.add_argument('--sindex', type=int, default="0")
     parser.add_argument('--eindex', type=int, default="999")
-    parser.add_argument('--vocab_fname', type=str, default="vocab.bin")
+    parser.add_argument('--vocab_fname', type=str, default="vocab.txt")
 
     args = parser.parse_args()
 

@@ -25,7 +25,7 @@ class SimpleVocab(Vocab):
                 token = pieces[0]
                 token_count = int(pieces[1])
 
-                if token in [TK_PADDING['word'], TK_UNKNOWN['word'], TK_START_DECODING['word'], TK_STOP_DECODING['word']]:
+                if token in [TK_PADDING['word'], TK_UNKNOWN['word'], TK_START['word'], TK_STOP['word']]:
                     raise Exception('[UNK], [PAD], [START] and [STOP] should not be in the vocab file, but %s is' % token)
 
                 vocab_map[token] = token_count
@@ -37,7 +37,7 @@ class SimpleVocab(Vocab):
         count = 0  # keeps track of total number of words in the Vocab
 
         # [PAD], [UNK], [START] and [STOP]
-        for token in [TK_PADDING, TK_UNKNOWN, TK_START_DECODING, TK_STOP_DECODING]:
+        for token in [TK_PADDING, TK_UNKNOWN, TK_START, TK_STOP]:
             self._word2id[token['word']] = count
             self._id2word[count] = token['word']
             count += 1
@@ -55,7 +55,7 @@ class SimpleVocab(Vocab):
             for i in range(self.size()):
                 word = self._word2id[i]
 
-                if word in [TK_PADDING['word'], TK_UNKNOWN['word'], TK_START_DECODING['word'], TK_STOP_DECODING['word']]:
+                if word in [TK_PADDING['word'], TK_UNKNOWN['word'], TK_START['word'], TK_STOP['word']]:
                     continue
 
                 writer.writerow({"word": word})

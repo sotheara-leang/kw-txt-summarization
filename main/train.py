@@ -53,7 +53,7 @@ class Train(object):
         self.optimizer.zero_grad()
 
         rouge       = Rouge()
-        dec_input   = cuda(t.tensor([TK_START_DECODING['id']] * self.batch_size))  # B
+        dec_input   = cuda(t.tensor([TK_START['id']] * self.batch_size))  # B
 
         ## encoding input
 
@@ -171,7 +171,7 @@ class Train(object):
 
             ## masking decoding
 
-            stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING['id']) == 2] = 1
+            stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP['id']) == 2] = 1
 
             if len(stop_decoding_mask[stop_decoding_mask == 1]) == len(stop_decoding_mask):
                 break
@@ -236,7 +236,7 @@ class Train(object):
 
             ## masking decoding
 
-            stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP_DECODING['id']) == 2] = 1
+            stop_decoding_mask[(stop_decoding_mask == 0) + (dec_output == TK_STOP['id']) == 2] = 1
 
             if len(stop_decoding_mask[stop_decoding_mask == 1]) == len(stop_decoding_mask):
                 break

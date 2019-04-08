@@ -1,10 +1,10 @@
 from main.common.common import *
 
 
-TK_PADDING          = {'word': '[PAD]',     'id': 0}
-TK_UNKNOWN          = {'word': '[UNK]',     'id': 1}
-TK_START_DECODING   = {'word': '[START]',   'id': 2}
-TK_STOP_DECODING    = {'word': '[STOP]',    'id': 3}
+TK_PADDING      = {'word': '[PAD]',     'id': 0}
+TK_UNKNOWN      = {'word': '[UNK]',     'id': 1}
+TK_START        = {'word': '[START]',   'id': 2}
+TK_STOP         = {'word': '[STOP]',    'id': 3}
 
 
 class Vocab(object):

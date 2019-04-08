@@ -13,7 +13,7 @@ class GloveEmbedding(nn.Module):
         vectors = bcolz.open(emb_file)[:]
 
         default_vectors = []
-        for token in [TK_PADDING, TK_UNKNOWN, TK_START_DECODING, TK_STOP_DECODING]:
+        for token in [TK_PADDING, TK_UNKNOWN, TK_START, TK_STOP]:
             vector = np.zeros(vectors.shape[1])
             vector[token['id']] = 1 if token['id'] != 0 else 0
 

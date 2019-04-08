@@ -14,6 +14,6 @@ class GloveVocab(Vocab):
             self._word2id = vocab_['word2id']
             self._id2word = vocab_['id2word']
 
-            for token in [TK_PADDING, TK_UNKNOWN, TK_START_DECODING, TK_STOP_DECODING]:
+            for token in [TK_PADDING, TK_UNKNOWN, TK_START, TK_STOP]:
                 self._word2id[token['word']] = token['id']
                 self._id2word[token['id']] = token['word']

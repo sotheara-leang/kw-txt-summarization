@@ -49,7 +49,7 @@ class Seq2Seq(nn.Module):
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.encoder(x, x_len)  # (B, L, 2H) , (B, 2H)
 
         # initial decoder input = START_DECODING
-        dec_input = cuda(t.tensor([TK_START_DECODING['id']] * len(x)))  # B
+        dec_input = cuda(t.tensor([TK_START['id']] * len(x)))  # B
 
         # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
@@ -88,7 +88,7 @@ class Seq2Seq(nn.Module):
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
             # set mask = 1 If output is [STOP]
-            stop_dec_mask[(stop_dec_mask == 0) + (dec_output == TK_STOP_DECODING['id']) == 2] = 1
+            stop_dec_mask[(stop_dec_mask == 0) + (dec_output == TK_STOP['id']) == 2] = 1
 
             # stop when all masks are 1
             if len(stop_dec_mask[stop_dec_mask == 1]) == len(stop_dec_mask):
@@ -154,7 +154,7 @@ class Seq2Seq(nn.Module):
 
         # vocab distribution
 
-        vocab_dist = f.softmax(self.vocab_gen(combine_input), dim=1)  # B, V disable to prevent problem of exploding gradient
+        vocab_dist = f.softmax(self.vocab_gen(combine_input), dim=1)  # B, V
         vocab_dist = (1 - ptr_gen) * vocab_dist  # B, V
 
         # final vocab distribution
