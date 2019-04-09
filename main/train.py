@@ -3,6 +3,7 @@ import torch as t
 import torch.nn as nn
 import torch.nn.functional as f
 from torch.distributions import Categorical
+from tensorboardX import SummaryWriter
 import math
 
 from main.data.giga import *
@@ -50,6 +51,8 @@ class Train(object):
 
         self.criterion = nn.NLLLoss(reduction='none', ignore_index=TK_PADDING['id'])
 
+        self.writer = SummaryWriter(FileUtil.get_file_path('logs/tensorboard/'))
+
     def train_batch(self, batch, epoch_counter):
         self.optimizer.zero_grad()
 
@@ -69,6 +72,9 @@ class Train(object):
 
             ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
             ml_loss = t.mean(ml_loss)
+
+            self.writer.add_scalar('Train/Loss', ml_loss, epoch_counter)
+
         else:
             ml_loss = cuda(t.zeros(1))
 

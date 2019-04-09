@@ -12,9 +12,4 @@ https://github.com/harvardnlp/sent-summary
 
 + Problem:
 
-- not exclude padding when do intra encoder attention
-- RL loss is wrong
-- change sampling in RL learning
-- scheduled sampling decay
 - apply dropout
-- apply Clip gradient norms
