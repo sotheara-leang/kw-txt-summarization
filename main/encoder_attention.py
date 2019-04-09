@@ -15,13 +15,14 @@ class EncoderAttention(nn.Module):
             dec_hidden          : B, 2H
             enc_hiddens         : B, L, 2H
             enc_temporal_score  : B, L
+            enc_padding_mask    : B, L
         
         :returns
             ctx_vector          : B, 2H
             att_dist            : B, L
             enc_temporal_score  : B, L
     '''
-    def forward(self, dec_hidden, enc_hiddens, enc_temporal_score):
+    def forward(self, dec_hidden, enc_hiddens, enc_padding_mask, enc_temporal_score):
         dec_hidden = dec_hidden.unsqueeze(1).expand(-1, enc_hiddens.size(1), -1).contiguous()  # B, L, 2H
 
         score = self.attn(dec_hidden, enc_hiddens).squeeze(2)   # B, L
@@ -35,6 +36,10 @@ class EncoderAttention(nn.Module):
         else:
             score = exp_score / enc_temporal_score
             enc_temporal_score = enc_temporal_score + exp_score
+
+        # masking
+
+        score = score * enc_padding_mask.float()
 
         # normalization
 

@@ -7,6 +7,7 @@ from main.encoder_attention import EncoderAttention
 from main.decoder_attention import DecoderAttention
 from main.common.vocab import *
 from main.common.common import *
+import math
 
 
 class Seq2Seq(nn.Module):
@@ -36,20 +37,23 @@ class Seq2Seq(nn.Module):
 
     '''
             :params
-                x               : B, L
-                x_len           : L
-                extend_vocab    : B, V + OOV
+                x                : B, L
+                x_len            : L
+                extend_vocab_x   : B, V + OOV
+                oov              : B, L
 
             :returns
-                y               : B, L
+                y                : B, L
     '''
-    def forward(self, x, x_len, extend_vocab):
+    def forward(self, x, x_len, extend_vocab_x, oov):
+        batch_size = len(x)
+
         x = self.embedding(x)  # B, L, E
 
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.encoder(x, x_len)  # (B, L, 2H) , (B, 2H)
 
         # initial decoder input = START_DECODING
-        dec_input = cuda(t.tensor([TK_START['id']] * len(x)))  # B
+        dec_input = cuda(t.tensor([TK_START['id']] * batch_size))  # B
 
         # initial decoder hidden = encoder last hidden
         dec_hidden = enc_hidden_n
@@ -64,10 +68,16 @@ class Seq2Seq(nn.Module):
 
         y = None  # B, L
 
+        #
+        enc_padding_mask = t.zeros(batch_size, max(x_len))
+        for i in range(batch_size):
+            enc_padding_mask[i, :x_len[i]] = t.ones(1, x_len[i])
+
         # stop decoding mask
         stop_dec_mask = cuda(t.zeros(len(x)))
 
-        max_ovv_len = max([len(vocab) for vocab in extend_vocab])
+        #
+        max_oov_len = max([len(vocab) for vocab in oov])
 
         for i in range(self.max_dec_steps):
             # decoding
@@ -77,11 +87,10 @@ class Seq2Seq(nn.Module):
                 dec_cell,
                 pre_dec_hiddens,
                 enc_outputs,
+                enc_padding_mask,
                 enc_temporal_score,
-                extend_vocab,
-                max_ovv_len)
-
-            vocab_dist = f.softmax(vocab_dist, dim=1)
+                extend_vocab_x,
+                max_oov_len)
 
             _, dec_output = t.max(vocab_dist, dim=1)  # B - word idx
 
@@ -102,14 +111,15 @@ class Seq2Seq(nn.Module):
 
     '''
         :params
-            dec_input           :   B
-            dec_hidden          :   B, 2H
-            dec_cell            :   B, 2H
-            pre_dec_hiddens     :   B, T, 2H
-            enc_hiddens         :   B, L, 2H
-            enc_temporal_score  :   B, L
-            extend_vocab        :   B, V + OOV
-            max_oov_len         :   C
+            dec_input               :   B
+            dec_hidden              :   B, 2H
+            dec_cell                :   B, 2H
+            pre_dec_hiddens         :   B, T, 2H
+            enc_hiddens             :   B, L, 2H
+            enc_padding_mask        :   B, L
+            enc_temporal_score      :   B, L
+            extend_vocab_x          :   B, V + OOV
+            max_oov_len             :   C
             
         :returns
             vocab_dist          :   B, V + OOV
@@ -123,8 +133,9 @@ class Seq2Seq(nn.Module):
                dec_cell,
                pre_dec_hiddens,
                enc_hiddens,
+               enc_padding_mask,
                enc_temporal_score,
-               extend_vocab,
+               extend_vocab_x,
                max_oov_len):
 
         # embedding input
@@ -138,7 +149,7 @@ class Seq2Seq(nn.Module):
         # enc_ctx_vector        : B, 2H
         # enc_att               : B, L
         # sum_temporal_score    : B, L
-        enc_ctx_vector, enc_att, enc_temporal_score = self.enc_att(dec_hidden, enc_hiddens, enc_temporal_score)
+        enc_ctx_vector, enc_att, enc_temporal_score = self.enc_att(dec_hidden, enc_hiddens, enc_padding_mask, enc_temporal_score)
 
         # intra-decoder attention
 
@@ -148,38 +159,39 @@ class Seq2Seq(nn.Module):
 
         combine_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
 
-        ptr_gen = t.sigmoid(self.ptr_gen(combine_input))  # B, 1
+        ptr_prob = t.sigmoid(self.ptr_gen(combine_input))  # B
 
-        ptr_dist = ptr_gen * enc_att  # B, L
+        ptr_dist = ptr_prob * enc_att  # B, L
 
         # vocab distribution
 
         vocab_dist = f.softmax(self.vocab_gen(combine_input), dim=1)  # B, V
-        vocab_dist = (1 - ptr_gen) * vocab_dist  # B, V
+        vocab_dist = (1 - ptr_prob) * vocab_dist
 
         # final vocab distribution
 
         final_vocab_dist = cuda(t.zeros(len(dec_input), self.vocab.size() + max_oov_len))     # B, V + OOV
         final_vocab_dist[:, :self.vocab.size()] = vocab_dist
-        final_vocab_dist.scatter_add(1, extend_vocab, ptr_dist)
+        final_vocab_dist.scatter_add(1, extend_vocab_x, ptr_dist)
 
         return final_vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, dec_ctx_vector, enc_temporal_score
 
     '''
         :params
-            x       :   B
+            x       :
         :returns
-            y       :   B
+            y       :
     '''
     def summarize(self, x):
         words = x.split()
 
-        x = cuda(t.tensor(self.vocab.words2ids(words)).unsqueeze(0))
-        x_len = cuda(t.tensor([len(words)]))
+        x = cuda(t.tensor(self.vocab.words2ids(words) + [TK_STOP['id']]).unsqueeze(0))
+        x_len = cuda(t.tensor([len(words) + 1]))
 
-        extend_vocab, oov = self.vocab.extend_words2ids(words)
-        extend_vocab = cuda(t.tensor(extend_vocab).unsqueeze(0))
+        extend_vocab_x, oov = self.vocab.extend_words2ids(words)
+        extend_vocab_x = cuda(t.tensor(extend_vocab_x).unsqueeze(0))
+        oovs = [oov]
 
-        y = self.forward(x, x_len, extend_vocab)[0].squeeze(0)
+        y = self.forward(x, x_len, extend_vocab_x, oovs)[0].squeeze(0)
 
         return ' '.join(self.vocab.ids2words(y.tolist(), oov))

@@ -3,6 +3,7 @@ import torch as t
 import torch.nn as nn
 import torch.nn.functional as f
 from torch.distributions import Categorical
+import math
 
 from main.data.giga import *
 from main.seq2seq import Seq2Seq
@@ -42,12 +43,12 @@ class Train(object):
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
-        self.dataLoader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
-                                         FileUtil.get_file_path(conf.get('train:summary-file')), self.batch_size)
+        self.data_loader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
+                                          FileUtil.get_file_path(conf.get('train:summary-file')), self.batch_size)
 
         self.optimizer = t.optim.Adam(self.seq2seq.parameters(), lr=self.lr)
 
-        self.criterion = nn.CrossEntropyLoss(reduction='none', ignore_index=TK_PADDING['id'])
+        self.criterion = nn.NLLLoss(reduction='none', ignore_index=TK_PADDING['id'])
 
     def train_batch(self, batch, epoch_counter):
         self.optimizer.zero_grad()
@@ -64,7 +65,7 @@ class Train(object):
         ## ML
 
         if self.ml_enable:
-            output = self.train_ml(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab, batch.summaries, epoch_counter)
+            output = self.train_ml(enc_outputs, enc_hidden, enc_cell, dec_input, batch, epoch_counter)
 
             ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
             ml_loss = t.mean(ml_loss)
@@ -82,11 +83,11 @@ class Train(object):
 
         if rl_enable:
             # sampling
-            sample_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, True)
+            sample_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch, True)
 
             # greedy search
             with t.autograd.no_grad():
-                baseline_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch.extend_vocab,  batch.summaries, False)
+                baseline_output = self.train_rl(enc_outputs, enc_hidden, enc_cell, dec_input, batch, False)
 
             # convert decoded output to string
 
@@ -137,13 +138,16 @@ class Train(object):
 
         return loss, ml_loss, rl_loss, reward, rl_enable
 
-    def train_ml(self, enc_outputs, dec_hidden, dec_cell, dec_input, extend_vocab, target_y, epoch_counter):
-        y                   = None  # B, T
-        loss                = None  # B, T
-        enc_temporal_score  = None
-        pre_dec_hiddens     = None  # B, T, 2H
-        stop_decoding_mask  = cuda(t.zeros(self.batch_size))     # B
-        max_ovv_len         = max([len(vocab) for vocab in extend_vocab])
+    def train_ml(self, enc_outputs, dec_hidden, dec_cell, dec_input, batch, epoch_counter):
+        y                       = None  # B, T
+        loss                    = None  # B, T
+        enc_temporal_score      = None
+        pre_dec_hiddens         = None  # B, T, 2H
+        stop_decoding_mask      = cuda(t.zeros(self.batch_size))     # B
+        extend_vocab_articles   = batch.extend_vocab_articles
+        max_ovv_len             = max([len(vocab) for vocab in batch.oovs])
+        target_y                = batch.summaries
+        articles_padding_mask   = batch.articles_padding_mask
 
         for i in range(target_y.size(1)):
             ## decoding
@@ -153,13 +157,21 @@ class Train(object):
                 dec_cell,
                 pre_dec_hiddens,
                 enc_outputs,
+                articles_padding_mask,
                 enc_temporal_score,
-                extend_vocab,
+                extend_vocab_articles,
                 max_ovv_len)
+
+            vocab_dist = t.log(vocab_dist + 1e-31)
 
             ## loss
 
             step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
+
+            for v in step_loss:
+                if math.isnan(v) or math.isinf(v):
+                    print('>>>> step_loss', step_loss)
+                    return
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
 
@@ -195,14 +207,17 @@ class Train(object):
 
         return y, loss
 
-    def train_rl(self, enc_outputs, dec_hidden, dec_cell, dec_input, target_y, extend_vocab, sampling):
-        y                   = None  # B, T
-        loss                = None  # B, T
-        enc_temporal_score  = None
-        pre_dec_hiddens     = None  # B, T, 2H
-        stop_decoding_mask  = cuda(t.zeros(self.batch_size))
-        dec_len             = self.max_dec_steps if target_y is None else target_y.size(1)
-        max_ovv_len         = max([len(vocab) for vocab in extend_vocab])
+    def train_rl(self, enc_outputs, dec_hidden, dec_cell, dec_input, batch, sampling):
+        y                       = None  # B, T
+        loss                    = None  # B, T
+        enc_temporal_score      = None
+        pre_dec_hiddens         = None  # B, T, 2H
+        stop_decoding_mask      = cuda(t.zeros(self.batch_size))
+        target_y                = batch.summaries
+        dec_len                 = self.max_dec_steps if target_y is None else target_y.size(1)
+        max_ovv_len             = max([len(vocab) for vocab in batch.oovs])
+        articles_padding_mask   = batch.articles_padding_mask
+        extend_vocab_articles   = batch.extend_vocab_articles
 
         for i in range(dec_len):
             ## decoding
@@ -212,8 +227,9 @@ class Train(object):
                 dec_cell,
                 pre_dec_hiddens,
                 enc_outputs,
+                articles_padding_mask,
                 enc_temporal_score,
-                extend_vocab,
+                extend_vocab_articles,
                 max_ovv_len)
 
             ## sampling
@@ -258,7 +274,7 @@ class Train(object):
 
         logger.debug('configuration: \n' + conf.dump().strip())
 
-        criterion_scheduler = self.get_lr_scheduler(self.optimizer)
+        criterion_scheduler = t.optim.lr_scheduler.StepLR(self.optimizer, self.lr_decay_epoch, self.lr_decay)
 
         for i in range(self.epoch):
             logger.debug('================= Epoch %i/%i =================', i + 1, self.epoch)
@@ -275,7 +291,7 @@ class Train(object):
             while True:
 
                 # get next batch
-                batch = self.dataLoader.next_batch()
+                batch = self.data_loader.next_batch()
 
                 if batch is None:
                     break
@@ -288,10 +304,10 @@ class Train(object):
 
                 if self.log_batch:
                     if enable_rl:
-                        logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f', batch_counter,
+                        logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f', batch_counter+1,
                                      loss, ml_loss, rl_loss, samples_reward)
                     else:
-                        logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=NA', batch_counter, loss, ml_loss)
+                        logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=NA', batch_counter+1, loss, ml_loss)
 
                 total_loss          += loss
                 total_ml_loss       += ml_loss
@@ -308,7 +324,7 @@ class Train(object):
             else:
                 logger.debug('rl-loss_avg\t=\tNA')
 
-            self.dataLoader.reset()
+            self.data_loader.reset()
 
         # save model
         model_path = FileUtil.get_file_path(conf.get('train:save-model-file'))
@@ -320,16 +336,11 @@ class Train(object):
     def evaluate(self):
         self.seq2seq.eval()
 
-        article, _ = self.dataLoader.next()
+        article, _ = self.data_loader.next()
 
         summary = self.seq2seq.summarize(article)
 
         print(summary)
-
-    def get_lr_scheduler(self, optimizer):
-        lr_lambda = lambda epoch: self.lr_decay ** (epoch // self.lr_decay_epoch)
-
-        return t.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
 
 if __name__ == "__main__":
