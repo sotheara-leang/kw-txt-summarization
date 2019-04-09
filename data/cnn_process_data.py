@@ -119,5 +119,5 @@ if __name__ == '__main__':
         generate_vocab(args.file, args.dir_out, args.vocab_fname, args.max_vocab)
     elif args.opt == 'count':
         print(count_samples(args.file))
-    else:
+    elif args.opt == 'extract':
         extract_samples(args.file[0], args.sindex, args.eindex, args.dir_out)

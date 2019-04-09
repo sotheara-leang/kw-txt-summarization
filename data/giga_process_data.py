@@ -105,7 +105,7 @@ def valid_vocab(string):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--opt', type=str, default="gen-vocab")
+    parser.add_argument('--opt', type=str, default="extract")
     parser.add_argument('--file', '--names-list', nargs="*")
     parser.add_argument('--dir_out', type=str, default="extract")
     parser.add_argument('--max_vocab', type=int, default="-1")
@@ -119,5 +119,5 @@ if __name__ == '__main__':
         generate_vocab(args.file, args.dir_out, args.vocab_fname, args.max_vocab)
     elif args.opt == 'count':
         print(count_samples(args.file))
-    else:
+    elif args.opt == 'extract':
         extract_samples(args.file[0], args.sindex, args.eindex, args.dir_out)
