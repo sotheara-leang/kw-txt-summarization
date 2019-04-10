@@ -7,7 +7,6 @@ from main.encoder_attention import EncoderAttention
 from main.decoder_attention import DecoderAttention
 from main.common.vocab import *
 from main.common.common import *
-import math
 
 
 class Seq2Seq(nn.Module):
@@ -15,9 +14,11 @@ class Seq2Seq(nn.Module):
     def __init__(self, vocab: Vocab, embedding=None):
         super(Seq2Seq, self).__init__()
 
-        self.emb_size       = conf.get('emb-size')
-        self.hidden_size    = conf.get('hidden-size')
-        self.max_dec_steps  = conf.get('max-dec-steps')
+        self.emb_size               = conf.get('emb-size')
+        self.hidden_size            = conf.get('hidden-size')
+        self.vocab_size             = conf.get('vocab-size')
+        self.max_dec_steps          = conf.get('max-dec-steps')
+        self.sharing_decoder_weight = conf.get('sharing-decoder-weight')
 
         self.vocab = vocab
 
@@ -31,9 +32,21 @@ class Seq2Seq(nn.Module):
         self.enc_att = EncoderAttention()
         self.dec_att = DecoderAttention()
 
-        self.vocab_gen = nn.Linear(6 * self.hidden_size, self.vocab.size())
-
         self.ptr_gen = nn.Linear(6 * self.hidden_size, 1)
+
+        # sharing decoder weight
+        if self.sharing_decoder_weight is True:
+            projection_layer = nn.Linear(6 * self.hidden_size, self.emb_size)
+
+            output_layer = nn.Linear(self.emb_size, self.vocab_size)
+            output_layer.weight = self.embedding.weight     # sharing weight with embedding
+
+            self.vocab_gen = nn.Sequential(
+                projection_layer,
+                output_layer
+            )
+        else:
+            self.vocab_gen = nn.Linear(6 * self.hidden_size, self.vocab.size())
 
     '''
             :params

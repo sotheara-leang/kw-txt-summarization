@@ -9,6 +9,8 @@ vocab-file: data/extract/giga-vocab.txt
 
 model-file: data/extract/giga-model.ckpt
 
+sharing-decoder-weight: true
+
 train:
   epoch: 100
   batch-size: 20
@@ -30,9 +32,7 @@ train:
     weight: 0.9984
 
   article-file: data/extract/giga-article.txt
-  #article-file: data/extract/train.article.txt
   summary-file: data/extract/giga-summary.txt
-  #summary-file: data/extract/train.title.txt
   vocab-file: data/extract/giga-vocab.txt
   emb-file: data/extract/embedding
   save-model-file: data/extract/giga-model.ckpt
