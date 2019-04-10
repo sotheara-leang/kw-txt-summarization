@@ -51,7 +51,7 @@ class Train(object):
 
         self.criterion = nn.NLLLoss(reduction='none', ignore_index=TK_PADDING['id'])
 
-        self.writer = SummaryWriter(FileUtil.get_file_path('logs/tensorboard/'))
+        self.tb_writer = SummaryWriter(FileUtil.get_file_path('logs/tensorboard/'))
 
     def train_batch(self, batch, epoch_counter):
         self.optimizer.zero_grad()
@@ -72,9 +72,6 @@ class Train(object):
 
             ml_loss = t.sum(output[1], dim=1) / t.sum(output[1] != 0, dim=1).float()
             ml_loss = t.mean(ml_loss)
-
-            self.writer.add_scalar('Train/Loss', ml_loss, epoch_counter)
-
         else:
             ml_loss = cuda(t.zeros(1))
 
@@ -168,11 +165,9 @@ class Train(object):
                 extend_vocab_articles,
                 max_ovv_len)
 
-            vocab_dist = t.log(vocab_dist + 1e-31)
-
             ## loss
 
-            step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
+            step_loss = self.criterion(t.log(vocab_dist + 1e-31), target_y[:, i])  # B
 
             for v in step_loss:
                 if math.isnan(v) or math.isinf(v):
@@ -246,7 +241,7 @@ class Train(object):
                 step_loss = sampling_dist.log_prob(dec_output)
             else:
                 ## greedy search
-                step_loss = self.criterion(vocab_dist, target_y[:, i])  # B
+                step_loss = self.criterion(t.log(vocab_dist + 1e-31), target_y[:, i])  # B
 
                 _, dec_output = t.max(vocab_dist, dim=1)
 
@@ -280,6 +275,8 @@ class Train(object):
 
         logger.debug('configuration: \n' + conf.dump().strip())
 
+        total_batch_counter = 0
+
         criterion_scheduler = t.optim.lr_scheduler.StepLR(self.optimizer, self.lr_decay_epoch, self.lr_decay)
 
         for i in range(self.epoch):
@@ -309,6 +306,11 @@ class Train(object):
                 loss, ml_loss, rl_loss, samples_reward, enable_rl = self.train_batch(batch, i+1)
 
                 if self.log_batch:
+                    # log to tensorboard
+                    self.tb_writer.add_scalar('Batch_Train/Loss', loss, total_batch_counter + 1)
+                    self.tb_writer.add_scalar('Batch_Train/ML-Loss', ml_loss, total_batch_counter + 1)
+                    self.tb_writer.add_scalar('Batch_Train/RL-Loss', rl_loss, total_batch_counter + 1)
+
                     if enable_rl:
                         logger.debug('BAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f', batch_counter+1,
                                      loss, ml_loss, rl_loss, samples_reward)
@@ -321,12 +323,22 @@ class Train(object):
                 total_samples_award += samples_reward
 
                 batch_counter       += 1
+                total_batch_counter += 1
 
-            logger.debug('loss_avg\t=\t%.3f', total_loss / batch_counter)
-            logger.debug('ml-loss-avg\t=\t%.3f', total_ml_loss / batch_counter)
+            epoch_loss = total_loss / batch_counter
+            epoch_ml_loss = total_ml_loss / batch_counter
+            epoch_rl_loss = total_rl_loss / batch_counter
+            epoch_samples_award = total_samples_award / batch_counter
+
+            # log to tensorboard
+            self.tb_writer.add_scalar('Epoch_Train/Loss', loss, i + 1)
+            self.tb_writer.add_scalar('Epoch_Train/ML-Loss', ml_loss, i + 1)
+            self.tb_writer.add_scalar('Epoch_Train/RL-Loss', rl_loss, i + 1)
+
+            logger.debug('loss_avg\t=\t%.3f', epoch_loss)
+            logger.debug('ml-loss-avg\t=\t%.3f', epoch_ml_loss)
             if enable_rl:
-                logger.debug('rl-loss_avg\t=\t%.3f,\t reward=%.3f',
-                             total_rl_loss / batch_counter, total_samples_award / batch_counter)
+                logger.debug('rl-loss_avg\t=\t%.3f,\t reward=%.3f', epoch_rl_loss, epoch_samples_award)
             else:
                 logger.debug('rl-loss_avg\t=\tNA')
 
