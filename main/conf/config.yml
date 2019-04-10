@@ -33,6 +33,8 @@ train:
 
   article-file: data/extract/giga-article.txt
   summary-file: data/extract/giga-summary.txt
+  keyword-file: data/extract/giga-keyword.txt
   vocab-file: data/extract/giga-vocab.txt
   emb-file: data/extract/embedding
   save-model-file: data/extract/giga-model.ckpt
+  tb-log-dir: logs/tensorboard/
