@@ -86,6 +86,8 @@ class Seq2Seq(nn.Module):
         for i in range(batch_size):
             enc_padding_mask[i, :x_len[i]] = t.ones(1, x_len[i])
 
+        enc_padding_mask = cuda(enc_padding_mask)
+
         # stop decoding mask
         stop_dec_mask = cuda(t.zeros(len(x)))
 
