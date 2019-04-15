@@ -13,7 +13,7 @@ class KWEncoder(nn.Module):
         :param
             kw     : B, L
         :return
-            emb    : B, E
+            emb    : B, L, E
     '''
     def forward(self, kw):
         emb = self.embedding(kw)

@@ -1,10 +1,10 @@
-emb-size: 50 # 100 - Glove
-hidden-size: 50 # 200
+emb-size: 5 # 100 - Glove
+hidden-size: 5 # 200
 
 max-enc-steps: 100
 max-dec-steps: 100
 
-vocab-size: 50000
+vocab-size: 10000
 vocab-file: data/extract/giga-vocab.txt
 
 model-file: data/extract/giga-model.ckpt
@@ -12,14 +12,15 @@ model-file: data/extract/giga-model.ckpt
 sharing-decoder-weight: true
 
 train:
-  epoch: 100
+  epoch: 5
   batch-size: 20
   log-batch: true
+  log-batch-interval: 1
   clip-gradient-max-norm: 1
 
-  lr: 0.0001
-  lr-decay: 0.1
-  lr-decay-epoch: 40
+  lr: 0.001
+  lr-decay: 1
+  lr-decay-epoch: 50
 
   ml:
     enable: true
@@ -31,10 +32,14 @@ train:
     transit-decay: 0
     weight: 0.9984
 
+  eval: true
+
+  tb-log-dir: logs/giga-5k/
+
   article-file: data/extract/giga-article.txt
   summary-file: data/extract/giga-summary.txt
   keyword-file: data/extract/giga-keyword.txt
   vocab-file: data/extract/giga-vocab.txt
   emb-file: data/extract/embedding
+  model-file:
   save-model-file: data/extract/giga-model.ckpt
-  tb-log-dir: logs/tensorboard/

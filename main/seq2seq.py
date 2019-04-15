@@ -3,9 +3,9 @@ import torch.nn.functional as f
 
 from main.encoder import Encoder
 from main.decoder import Decoder
-from main.kw_encoder_attention import EncoderAttention
-from main.decoder_attention import DecoderAttention
 from main.kw_encoder import KWEncoder
+from main.encoder_attention import EncoderAttention
+from main.decoder_attention import DecoderAttention
 from main.common.vocab import *
 from main.common.common import *
 
@@ -15,10 +15,10 @@ class Seq2Seq(nn.Module):
     def __init__(self, vocab: Vocab, embedding=None):
         super(Seq2Seq, self).__init__()
 
-        self.emb_size               = conf.get('emb-size')
-        self.hidden_size            = conf.get('hidden-size')
-        self.vocab_size             = conf.get('vocab-size')
-        self.max_dec_steps          = conf.get('max-dec-steps')
+        self.emb_size = conf.get('emb-size')
+        self.hidden_size = conf.get('hidden-size')
+        self.vocab_size = conf.get('vocab-size')
+        self.max_dec_steps = conf.get('max-dec-steps')
         self.sharing_decoder_weight = conf.get('sharing-decoder-weight')
 
         self.vocab = vocab
@@ -40,7 +40,7 @@ class Seq2Seq(nn.Module):
             projection_layer = nn.Linear(6 * self.hidden_size, self.emb_size)
 
             output_layer = nn.Linear(self.emb_size, self.vocab_size)
-            output_layer.weight = self.embedding.weight     # sharing weight with embedding
+            output_layer.weight = self.embedding.weight  # sharing weight with embedding
 
             self.vocab_gen = nn.Sequential(
                 projection_layer,
@@ -56,13 +56,13 @@ class Seq2Seq(nn.Module):
             :params
                 x                : B, L
                 x_len            : L
-                extend_vocab_x   : B, V + OOV
-                oov              : B, L
-                kw               : B, E
-
+                extend_vocab_x   : B, L
+                oov              : B, OOV
+                kw               : B, N
             :returns
-                y                : B, L
+                y                : B, M
     '''
+
     def forward(self, x, x_len, extend_vocab_x, oov, kw):
         batch_size = len(x)
 
@@ -77,10 +77,10 @@ class Seq2Seq(nn.Module):
         dec_hidden = enc_hidden_n
 
         # initial decoder cell = encoder last cell
-        dec_cell = enc_cell_n
+        dec_cell = cuda(t.zeros(batch_size, 2 * self.hidden_size))
 
         # encoder temporal attention score
-        enc_temporal_score = None   # B, L
+        enc_temporal_score = None  # B, L
 
         pre_dec_hiddens = None  # B, T, 2H
 
@@ -99,6 +99,9 @@ class Seq2Seq(nn.Module):
         #
         max_oov_len = max([len(vocab) for vocab in oov])
 
+        #
+        enc_ctx_vector = cuda(t.zeros(batch_size, 2 * self.hidden_size))
+
         # keyword
         kw = self.kw_encoder(kw)
 
@@ -112,6 +115,7 @@ class Seq2Seq(nn.Module):
                 enc_outputs,
                 enc_padding_mask,
                 enc_temporal_score,
+                enc_ctx_vector,
                 extend_vocab_x,
                 max_oov_len,
                 kw)
@@ -127,7 +131,8 @@ class Seq2Seq(nn.Module):
             if len(stop_dec_mask[stop_dec_mask == 1]) == len(stop_dec_mask):
                 break
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat(
+                [pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
             dec_input = dec_output
 
@@ -153,6 +158,7 @@ class Seq2Seq(nn.Module):
             dec_ctx_vector      :   B, 2H
             enc_temporal_score  :   B, L
     '''
+
     def decode(self, dec_input,
                dec_hidden,
                dec_cell,
@@ -160,15 +166,18 @@ class Seq2Seq(nn.Module):
                enc_hiddens,
                enc_padding_mask,
                enc_temporal_score,
+               enc_ctx_vector,
                extend_vocab_x,
                max_oov_len,
                kw):
 
         # embedding input
-        dec_input = self.embedding(dec_input)   # B, E
+        dec_input = self.embedding(dec_input)  # B, E
 
         # current hidden & cell
-        dec_hidden, dec_cell = self.decoder(dec_input, dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :], dec_cell)  # B, 2H
+        dec_hidden, dec_cell = self.decoder(dec_input,
+                                            dec_hidden if pre_dec_hiddens is None else pre_dec_hiddens[:, -1, :],
+                                            dec_cell, enc_ctx_vector)  # B, 2H
 
         # keyword
         kw = self.kw_encoder(kw)
@@ -178,7 +187,8 @@ class Seq2Seq(nn.Module):
         # enc_ctx_vector        : B, 2H
         # enc_att               : B, L
         # sum_temporal_score    : B, L
-        enc_ctx_vector, enc_att, enc_temporal_score = self.enc_att(dec_hidden, enc_hiddens, enc_padding_mask, enc_temporal_score, kw)
+        enc_ctx_vector, enc_att, enc_temporal_score = self.enc_att(dec_hidden, enc_hiddens, enc_padding_mask,
+                                                                   enc_temporal_score, kw)
 
         # intra-decoder attention
 
@@ -199,7 +209,7 @@ class Seq2Seq(nn.Module):
 
         # final vocab distribution
 
-        final_vocab_dist = cuda(t.zeros(len(dec_input), self.vocab.size() + max_oov_len))     # B, V + OOV
+        final_vocab_dist = cuda(t.zeros(len(dec_input), self.vocab.size() + max_oov_len))  # B, V + OOV
         final_vocab_dist[:, :self.vocab.size()] = vocab_dist
         final_vocab_dist.scatter_add(1, extend_vocab_x, ptr_dist)
 
@@ -207,11 +217,15 @@ class Seq2Seq(nn.Module):
 
     '''
         :params
-            x       :
+            x       : article
+            kw      : keywords
         :returns
-            y       :
+            y       : summary
     '''
-    def summarize(self, x):
+
+    def summarize(self, x, kw):
+        self.eval()
+
         words = x.split()
 
         x = cuda(t.tensor(self.vocab.words2ids(words) + [TK_STOP['id']]).unsqueeze(0))
@@ -221,6 +235,8 @@ class Seq2Seq(nn.Module):
         extend_vocab_x = cuda(t.tensor(extend_vocab_x).unsqueeze(0))
         oovs = [oov]
 
-        y = self.forward(x, x_len, extend_vocab_x, oovs)[0].squeeze(0)
+        kw = self.vocab.words2ids(kw.split(), oov)
+
+        y = self.forward(x, x_len, extend_vocab_x, oovs, kw)[0].squeeze(0)
 
         return ' '.join(self.vocab.ids2words(y.tolist(), oov))

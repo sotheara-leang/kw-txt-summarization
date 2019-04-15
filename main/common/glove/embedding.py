@@ -1,4 +1,3 @@
-import torch as t
 import torch.nn as nn
 import bcolz
 import numpy as np

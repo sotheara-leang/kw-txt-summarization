@@ -21,7 +21,7 @@ class EncoderAttention(nn.Module):
             enc_temporal_score  : B, L
             enc_padding_mask    : B, L
             enc_temporal_score  : B, L
-            kw                  : B, N
+            kw                  : B, L
             
         :returns
             ctx_vector          : B, 2H
