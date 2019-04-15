@@ -5,8 +5,9 @@ import torch.nn.functional as f
 from torch.distributions import Categorical
 from tensorboardX import SummaryWriter
 import math
+import os
 
-from main.data.kw_dataloader import DataLoader
+from main.data.giga import *
 from main.seq2seq import Seq2Seq
 from main.common.kw_batch import *
 from main.common.util.file_util import FileUtil
@@ -44,15 +45,14 @@ class Train(object):
 
         self.batch_initializer = BatchInitializer(self.vocab, conf.get('max-enc-steps'))
 
-        self.data_loader = DataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
-                                          FileUtil.get_file_path(conf.get('train:summary-file')),
-                                          FileUtil.get_file_path(conf.get('train:keyword-file')), self.batch_size)
+        self.data_loader = GigaDataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
+                                          FileUtil.get_file_path(conf.get('train:summary-file')), self.batch_size)
 
         self.optimizer = t.optim.Adam(self.seq2seq.parameters(), lr=self.lr)
 
         self.criterion = nn.NLLLoss(reduction='none', ignore_index=TK_PADDING['id'])
 
-        self.tb_writer = SummaryWriter(FileUtil.get_file_path('train:tb-log-dir'))
+        self.tb_writer = SummaryWriter(FileUtil.get_file_path(conf.get('train:tb-log-dir')))
 
     def train_batch(self, batch, epoch_counter):
         self.optimizer.zero_grad()
@@ -152,7 +152,6 @@ class Train(object):
         max_ovv_len             = max([len(vocab) for vocab in batch.oovs])
         target_y                = batch.summaries
         articles_padding_mask   = batch.articles_padding_mask
-        keywords                = batch.keywords
 
         for i in range(target_y.size(1)):
             ## decoding
@@ -165,8 +164,7 @@ class Train(object):
                 articles_padding_mask,
                 enc_temporal_score,
                 extend_vocab_articles,
-                max_ovv_len,
-                keywords)
+                max_ovv_len)
 
             ## loss
 
@@ -222,7 +220,6 @@ class Train(object):
         max_ovv_len             = max([len(vocab) for vocab in batch.oovs])
         articles_padding_mask   = batch.articles_padding_mask
         extend_vocab_articles   = batch.extend_vocab_articles
-        keywords                = batch.keywords
 
         for i in range(dec_len):
             ## decoding
@@ -235,8 +232,7 @@ class Train(object):
                 articles_padding_mask,
                 enc_temporal_score,
                 extend_vocab_articles,
-                max_ovv_len,
-                keywords)
+                max_ovv_len)
 
             ## sampling
             if sampling:
@@ -278,13 +274,17 @@ class Train(object):
     def run(self):
         self.seq2seq.train()
 
-        logger.debug('configuration: \n' + conf.dump().strip())
+        logger.debug('>>> configuration: \n' + conf.dump().strip())
+
+        # load pre-trained model
+        self.load_model()
 
         total_batch_counter = 0
 
         criterion_scheduler = t.optim.lr_scheduler.StepLR(self.optimizer, self.lr_decay_epoch, self.lr_decay)
 
         for i in range(self.epoch):
+
             logger.debug('================= Epoch %i/%i =================', i + 1, self.epoch)
 
             batch_counter       = 0
@@ -347,23 +347,54 @@ class Train(object):
             else:
                 logger.debug('rl-loss_avg\t=\tNA')
 
+            # reload data set
             self.data_loader.reset()
 
         # save model
-        model_path = FileUtil.get_file_path(conf.get('train:save-model-file'))
-
-        logger.debug('save model into : ' + model_path)
-
-        t.save(self.seq2seq.state_dict(), model_path)
+        self.save_model({'epoch': i, 'loss': epoch_loss})
 
     def evaluate(self):
         self.seq2seq.eval()
 
         article, _ = self.data_loader.next()
 
+        print(article)
+
         summary = self.seq2seq.summarize(article)
 
         print(summary)
+
+    def save_model(self, args):
+        model_file = FileUtil.get_file_path(conf.get('train:save-model-file'))
+
+        logger.debug('>>> save model into: ' + model_file)
+
+        t.save({
+            'epoch': args['epoch'],
+            'loss': args['loss'],
+            'model_state_dict': self.seq2seq.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+        }, FileUtil.get_file_path(model_file))
+
+    def load_model(self):
+        model_file = FileUtil.get_file_path(conf.get('train:save-model-file'))
+
+        if os.path.isfile(model_file):
+            logger.debug('>>> load pre-trained model from: %s', model_file)
+
+            checkpoint = t.load(model_file)
+
+            epoch = checkpoint['epoch']
+            loss = checkpoint['loss']
+
+            self.seq2seq.load_state_dict(checkpoint['model_state_dict'])
+
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+            logger.debug('epoch: %s', str(epoch))
+            logger.debug('loss: %s', str(loss.item()))
+        else:
+            logger.warning('>>> cannot load pre-trained model - file not exist: %s', model_file)
 
 
 if __name__ == "__main__":

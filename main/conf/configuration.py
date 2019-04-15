@@ -13,6 +13,9 @@ class Configuration:
         with open(FileUtil.get_file_path("main/conf/config.yml"), 'r') as file:
             self.cfg = yaml.load(file, Loader=Loader)
 
+    def exist(self, key):
+        return True if self.get(key) is not None else False
+
     def get(self, key):
         keys = key.split(':')
         if len(keys) > 1:
