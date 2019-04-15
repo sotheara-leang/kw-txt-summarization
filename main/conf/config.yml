@@ -5,9 +5,9 @@ max-enc-steps: 100
 max-dec-steps: 100
 
 vocab-size: 10000
-vocab-file: data/extract/giga-vocab.txt
+vocab-file: data/extract/vocab.txt
 
-model-file: data/extract/giga-model.ckpt
+model-file: data/extract/model.ckpt
 
 sharing-decoder-weight: true
 
@@ -36,10 +36,10 @@ train:
 
   tb-log-dir: logs/giga-5k/
 
-  article-file: data/extract/giga-article.txt
-  summary-file: data/extract/giga-summary.txt
-  keyword-file: data/extract/giga-keyword.txt
-  vocab-file: data/extract/giga-vocab.txt
+  article-file: data/extract/article.txt
+  summary-file: data/extract/summary.txt
+  keyword-file: data/extract/keyword.txt
+  vocab-file: data/extract/vocab.txt
   emb-file: data/extract/embedding
   model-file:
-  save-model-file: data/extract/giga-model.ckpt
+  save-model-file: data/extract/model.ckpt

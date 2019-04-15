@@ -162,10 +162,11 @@ class Train(object):
         pre_dec_hiddens         = None  # B, T, 2H
         stop_decoding_mask      = cuda(t.zeros(self.batch_size))     # B
         extend_vocab_articles   = batch.extend_vocab_articles        # B, L
-        max_ovv_len             = max([len(vocab) for vocab in batch.oovs])
         target_y                = batch.summaries
         articles_padding_mask   = batch.articles_padding_mask        # B, L
         max_dec_len             = max(batch.summaries_len)
+        max_ovv_len             = max([len(oov) for oov in batch.oovs])
+
         enc_ctx_vector          = cuda(t.zeros(self.batch_size, 2 * self.hidden_size))
 
         for i in range(max_dec_len):
@@ -185,7 +186,7 @@ class Train(object):
 
             ## loss
 
-            step_loss = self.criterion(t.log(vocab_dist + 1e-12), target_y[:, i])  # B
+            step_loss = self.criterion(t.log(vocab_dist + 1e-10), target_y[:, i])  # B
 
             for v in step_loss:
                 if math.isnan(v) or math.isinf(v):
@@ -232,11 +233,11 @@ class Train(object):
         enc_temporal_score      = None  # B, L
         pre_dec_hiddens         = None  # B, T, 2H
         stop_decoding_mask      = cuda(t.zeros(self.batch_size))    # B
-        target_y                = batch.summaries
-        max_ovv_len             = max([len(vocab) for vocab in batch.oovs])
         articles_padding_mask   = batch.articles_padding_mask       # B, L
         extend_vocab_articles   = batch.extend_vocab_articles       # B, L
-        enc_ctx_vector          = cuda(t.zeros(self.batch_size, 2 * self.hidden_size))
+        max_ovv_len             = max([len(oov) for oov in batch.oovs])
+
+        enc_ctx_vector = cuda(t.zeros(self.batch_size, 2 * self.hidden_size))
 
         for i in range(self.max_dec_steps):
             ## decoding
@@ -255,21 +256,19 @@ class Train(object):
 
             ## sampling
             if sampling:
-                sampling_dist = Categorical(vocab_dist, dim=1)
+                sampling_dist = Categorical(vocab_dist)
                 dec_output = sampling_dist.sample()
 
                 step_loss = sampling_dist.log_prob(dec_output)
+
+                loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
             else:
                 ## greedy search
-                step_loss = self.criterion(t.log(vocab_dist + 1e-31), target_y[:, i])  # B
-
                 _, dec_output = t.max(vocab_dist, dim=1)
 
-            ## y & loss
+            ## y
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
-
-            loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)  # B, L
 
             ## masking decoding
 
