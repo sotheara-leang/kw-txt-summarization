@@ -12,7 +12,7 @@ class EncoderAttention(nn.Module):
         self.dec = nn.Linear(2 * conf.get('hidden-size'), 2 * conf.get('hidden-size'), False)
         self.kw = nn.Linear(conf.get('emb-size'), 2 * conf.get('hidden-size'))
 
-        self.v = nn.Linear(2 * conf.get('hidden-size'), 1)
+        self.v = nn.Linear(2 * conf.get('hidden-size'), 1, False)
 
     '''
         :params
