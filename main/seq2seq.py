@@ -235,6 +235,6 @@ class Seq2Seq(nn.Module):
 
         kw = self.vocab.words2ids(kw.split())
 
-        y = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)[0].squeeze(0)
+        y = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)[0]
 
         return ' '.join(self.vocab.ids2words(y.tolist(), oov))

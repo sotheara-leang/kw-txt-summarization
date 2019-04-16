@@ -1,4 +1,6 @@
-emb-size: 5 # 100 - Glove
+emb-size: 5 # 100
+emb-file: data/extract/embedding
+
 hidden-size: 5 # 200
 
 max-enc-steps: 100
@@ -39,7 +41,6 @@ train:
   article-file: data/extract/article.txt
   summary-file: data/extract/summary.txt
   keyword-file: data/extract/keyword.txt
-  vocab-file: data/extract/vocab.txt
-  emb-file: data/extract/embedding
-  model-file:
+
+  load-model-file:
   save-model-file: data/extract/model.ckpt

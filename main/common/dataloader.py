@@ -11,16 +11,17 @@ class DataLoader(object):
     def next_batch(self):
         samples = []
         for i in range(0, self.batch_size):
+            sample = None
             try:
                 sample = next(self.generator)
             except Exception:
-                return None
+                pass
 
             if sample is None:
                 break
             samples.append(sample)
 
-        return samples
+        return samples if len(samples) > 0 else None
 
     def next(self):
         try:
