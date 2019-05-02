@@ -1,14 +1,13 @@
 import torch.nn as nn
 import bcolz
 import numpy as np
+
 from main.common.vocab import *
 
 
-class GloveEmbedding(nn.Module):
+class GloveEmbedding(nn.Embedding):
 
     def __init__(self, emb_file):
-        super(GloveEmbedding, self).__init__()
-
         vectors = bcolz.open(emb_file)[:]
 
         default_vectors = []
@@ -24,8 +23,8 @@ class GloveEmbedding(nn.Module):
 
         n_vocab, vocab_dim = vectors.shape
 
-        self.embedding = nn.Embedding(n_vocab, vocab_dim, padding_idx=0)
-        self.embedding.from_pretrained(t.tensor(vectors))
+        super(GloveEmbedding, self).__init__(num_embeddings=n_vocab,
+                                             embedding_dim=vocab_dim, padding_idx=0, _weight=t.FloatTensor(vectors))
 
     def forward(self, x):
         return self.embedding(x)

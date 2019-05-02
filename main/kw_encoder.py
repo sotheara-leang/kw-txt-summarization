@@ -11,7 +11,7 @@ class KWEncoder(nn.Module):
 
     '''
         :param
-            kw     : B, L
+            w_k     : B, L
         :return
             emb    : B, L, E
     '''

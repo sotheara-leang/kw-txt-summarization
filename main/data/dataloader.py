@@ -16,12 +16,17 @@ class DataLoader(DataLoader):
         with open(self.article_file, 'r') as art_reader, \
                 open(self.summary_file, 'r') as sum_reader, open(self.summary_file, 'r') as kw_reader:
             while True:
-                article = next(art_reader).strip()
+                article = next(art_reader)
+                summaries = next(sum_reader)
+                kws = next(kw_reader)
 
-                summaries = next(sum_reader).split(DataLoader.SEPARATOR)
+                if article == '' or summaries == '' or kws == '':
+                    continue
+
+                summaries = summaries.split(DataLoader.SEPARATOR)
                 summaries = [summary.strip() for summary in summaries]
 
-                kws = next(kw_reader).split(DataLoader.SEPARATOR)
+                kws = kws.split(DataLoader.SEPARATOR)
                 kws = [kw.strip() for kw in kws]
 
                 yield article, summaries, kws
