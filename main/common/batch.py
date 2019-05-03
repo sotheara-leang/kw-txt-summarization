@@ -31,6 +31,8 @@ class Batch(object):
         # to evaluate rouge score
         self.original_summaries = original_summaries
 
+        self.size = len(articles)
+
 
 class BatchInitializer(object):
 
@@ -41,7 +43,16 @@ class BatchInitializer(object):
         self.pointer_generator = pointer_generator
 
     def init(self, samples):
-        articles, summaries, keywords = list(zip(*samples))
+        articles    = []
+        summaries   = []
+        keywords    = []
+
+        for sample in samples:
+            article_, summaries_, keywords_ = sample
+
+            articles.extend([article_ for _ in range(len(summaries_))])
+            summaries.extend(summaries_)
+            keywords.extend(keywords_)
 
         # article
         articles_words = []
@@ -94,19 +105,20 @@ class BatchInitializer(object):
 
             enc_summaries.append(enc_summary)
 
-        # keywords
-        keywords_len = [len(kws.split()) + 1 for kws in keywords]
+        # keyword
+        kws_words = []
+        for kw in keywords:
+            kws_words.append(kw.split())
 
-        max_keyword_len = max(keywords_len)
+        kws_len = [len(w) for w in kws_words]
+        max_kw_len = max(kws_len)
 
         enc_keywords = []
-        for kws in keywords:
-            ks_words = kws.split()
+        for i, kw_words in enumerate(kws_words):
+            enc_kw = self.vocab.words2ids(kw_words, oovs[i])
+            enc_kw += [TK_PADDING['id']] * (max_kw_len - len(enc_kw))
 
-            enc_keyword = self.vocab.words2ids(ks_words)
-            enc_keyword += [TK_PADDING['id']] * (max_keyword_len - len(enc_keyword))
-
-            enc_keywords.append(enc_keywords)
+            enc_keywords.append(enc_kw)
 
         # covert to tensor
         enc_articles = cuda(t.tensor(enc_articles))
@@ -119,7 +131,7 @@ class BatchInitializer(object):
         summaries_len = cuda(t.tensor(summaries_len))
 
         enc_keywords = cuda(t.tensor(enc_keywords))
-        keywords_len = cuda(t.tensordot(keywords_len))
+        keywords_len = cuda(t.tensor(kws_len))
 
         # sort tensor
         articles_len, indices = articles_len.sort(0, descending=True)

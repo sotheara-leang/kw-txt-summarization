@@ -3,7 +3,7 @@ from main.common.dataloader import *
 
 class DataLoader(DataLoader):
 
-    SEPARATOR = '$$$'
+    SEPARATOR = '-$$$-'
 
     def __init__(self, article_file, summary_file, keyword_file, batch_size):
         super(DataLoader, self).__init__(batch_size)
@@ -14,7 +14,7 @@ class DataLoader(DataLoader):
 
     def reader(self):
         with open(self.article_file, 'r') as art_reader, \
-                open(self.summary_file, 'r') as sum_reader, open(self.summary_file, 'r') as kw_reader:
+                open(self.summary_file, 'r') as sum_reader, open(self.keyword_file, 'r') as kw_reader:
             while True:
                 article = next(art_reader)
                 summaries = next(sum_reader)

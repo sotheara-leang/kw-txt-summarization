@@ -5,7 +5,7 @@ import time
 import datetime
 import argparse
 
-from main.data.giga_world import *
+from main.data.dataloader import *
 from main.seq2seq import Seq2Seq
 from main.common.batch import *
 from main.common.util.file_util import FileUtil
@@ -17,8 +17,8 @@ class Evaluate(object):
     def __init__(self):
         self.logger                     = getLogger(self)
 
-        self.max_enc_steps              = conf.get('max-w_e-steps')
-        self.max_dec_steps              = conf.get('max-w_d-steps')
+        self.max_enc_steps              = conf.get('max-enc-steps')
+        self.max_dec_steps              = conf.get('max-dec-steps')
        
         self.batch_size                 = conf.get('eval:batch-size')
         self.log_batch                  = conf.get('eval:log-batch')
@@ -35,7 +35,9 @@ class Evaluate(object):
 
         self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps, self.pointer_generator)
 
-        self.data_loader = GigaWorldDataLoader(FileUtil.get_file_path(conf.get('eval:article-file')), FileUtil.get_file_path(conf.get('eval:summary-file')), self.batch_size)
+        self.data_loader = DataLoader(FileUtil.get_file_path(conf.get('eval:article-file')),
+                                      FileUtil.get_file_path(conf.get('eval:summary-file')),
+                                      FileUtil.get_file_path(conf.get('eval:keyword-file')), self.batch_size)
 
         if self.tb_log_dir is not None:
             self.tb_writer = SummaryWriter(FileUtil.get_file_path(self.tb_log_dir))
@@ -64,7 +66,7 @@ class Evaluate(object):
 
             # prediction
 
-            output = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len)
+            output = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):

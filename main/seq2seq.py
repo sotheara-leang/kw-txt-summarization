@@ -183,14 +183,9 @@ class Seq2Seq(nn.Module):
 
         dec_hidden, dec_cell = self.decoder(dec_input, dec_hidden, dec_cell, enc_ctx_vector)
 
-        # keyword
-
-        kw = self.kw_encoder(kw)
-
         # intra-temporal encoder attention
 
-        enc_ctx_vector, enc_att, enc_temporal_score = self.enc_att(dec_hidden, enc_hiddens, enc_padding_mask,
-                                                                   enc_temporal_score, kw)
+        enc_ctx_vector, enc_att, enc_temporal_score = self.enc_att(dec_hidden, enc_hiddens, enc_padding_mask, enc_temporal_score, kw)
 
         # intra-decoder attention
 

@@ -1,5 +1,5 @@
 emb-size: 5 # 100
-emb-file: data/extract/embedding
+emb-file: data/train/embedding
 
 enc-hidden-size: 5 # 200
 dec-hidden-size: 10 # 400
@@ -7,22 +7,22 @@ dec-hidden-size: 10 # 400
 max-enc-steps: 100
 max-dec-steps: 100
 
-vocab-size: 5000
-vocab-file: data/extract/giga-vocab.txt
+vocab-size: 500
+vocab-file: data/train/vocab.txt
 
-model-file: data/extract/giga-model.ckpt
+model-file: data/train/model.ckpt
 
-pointer-generator: false
-share-dec-weight: false
+pointer-generator: true
+share-dec-weight: true
 
 device: cpu
 
 train:
   epoch: 1
-  batch-size: 2
+  batch-size: 5
   log-batch: true
   log-batch-interval: 1
-  clip-gradient-max-norm: 1
+  clip-gradient-max-norm:
 
   lr: 0.001
   lr-decay: 1
@@ -42,12 +42,12 @@ train:
 
   tb-log-dir: logs/giga/
 
-  article-file: data/extract/giga-article.txt
-  summary-file: data/extract/giga-summary.txt
-  keyword-file: data/extract/giga-keyword.txt
+  article-file: data/train/article.txt
+  summary-file: data/train/summary.txt
+  keyword-file: data/train/keyword.txt
 
   load-model-file:
-  save-model-file: data/result/giga-model.ckpt
+  save-model-file: data/result/model.ckpt
   save-model-per-epoch:
 
 eval:
@@ -55,8 +55,8 @@ eval:
   log-batch: true
   log-batch-interval: 2
 
-  load-model-file: data/result/giga-model.ckpt
+  load-model-file: data/result/model.ckpt
 
-  article-file: data/extract/giga-article.txt
-  summary-file: data/extract/giga-summary.txt
-  keyword-file: data/extract/giga-keyword.txt
+  article-file: data/train/article.txt
+  summary-file: data/train/summary.txt
+  keyword-file: data/train/keyword.txt

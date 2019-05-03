@@ -58,7 +58,7 @@ class Train(object):
 
         self.data_loader = DataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
                                       FileUtil.get_file_path(conf.get('train:summary-file')),
-                                      FileUtil.get_file_path(conf.get('train:keyword-file'), self.batch_size))
+                                      FileUtil.get_file_path(conf.get('train:keyword-file')), self.batch_size)
 
         self.optimizer = t.optim.Adam(self.seq2seq.parameters(), lr=self.lr)
 
@@ -85,7 +85,7 @@ class Train(object):
 
         ## encoding keyword
 
-        kw = self.seq2seq.embedding(batch.keywords)  # B, L, E
+        kw = self.seq2seq.kw_encoder(batch.keywords)  # B, L, E
 
         ## ML
 
@@ -422,7 +422,7 @@ class Train(object):
 
             # prediction
 
-            output = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len)
+            output = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):

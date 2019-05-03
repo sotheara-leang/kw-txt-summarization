@@ -9,7 +9,7 @@ class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
 
-        self.lstm = nn.LSTM(conf.get('emb-size'), conf.get('w_e-hidden-size'), num_layers=1, batch_first=True, bidirectional=True)
+        self.lstm = nn.LSTM(conf.get('emb-size'), conf.get('enc-hidden-size'), num_layers=1, batch_first=True, bidirectional=True)
 
     '''
         :params

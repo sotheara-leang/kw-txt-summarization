@@ -11,9 +11,9 @@ class KWEncoder(nn.Module):
 
     '''
         :param
-            w_k     : B, L
+            kw     : B, L
         :return
-            emb    : B, L, E
+            emb    : B, E
     '''
     def forward(self, kw):
         emb = self.embedding(kw)
