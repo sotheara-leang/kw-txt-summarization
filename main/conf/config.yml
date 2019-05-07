@@ -1,46 +1,62 @@
 emb-size: 5 # 100
-emb-file: data/extract/embedding
+emb-file: data/train/embedding
 
-hidden-size: 5 # 200
+enc-hidden-size: 5 # 200
+dec-hidden-size: 10 # 400
 
 max-enc-steps: 100
 max-dec-steps: 100
 
-vocab-size: 10000
-vocab-file: data/extract/vocab.txt
+vocab-size: 500
+vocab-file: data/train/vocab.txt
 
-model-file: data/extract/model.ckpt
+model-file: data/train/model.ckpt
 
-sharing-decoder-weight: true
+pointer-generator: true
+share-dec-weight: true
+
+device: cpu
 
 train:
-  epoch: 5
-  batch-size: 20
+  epoch: 1
+  batch-size: 5
   log-batch: true
   log-batch-interval: 1
-  clip-gradient-max-norm: 1
+  clip-gradient-max-norm:
 
   lr: 0.001
   lr-decay: 1
   lr-decay-epoch: 50
 
   ml:
-    enable: true
+    enable: false
     forcing-ratio: 1
     forcing-decay: 0
   rl:
-    enable: false
-    transit-epoch: -1
+    enable: true
+    transit-epoch: 1
     transit-decay: 0
     weight: 0.9984
 
   eval: true
 
-  tb-log-dir: logs/giga-5k/
+  tb-log-dir: logs/giga/
 
-  article-file: data/extract/article.txt
-  summary-file: data/extract/summary.txt
-  keyword-file: data/extract/keyword.txt
+  article-file: data/train/article.txt
+  summary-file: data/train/summary.txt
+  keyword-file: data/train/keyword.txt
 
   load-model-file:
-  save-model-file: data/extract/model.ckpt
+  save-model-file: data/result/model.ckpt
+  save-model-per-epoch:
+
+eval:
+  batch-size: 20
+  log-batch: true
+  log-batch-interval: 2
+
+  load-model-file: data/result/model.ckpt
+
+  article-file: data/train/article.txt
+  summary-file: data/train/summary.txt
+  keyword-file: data/train/keyword.txt

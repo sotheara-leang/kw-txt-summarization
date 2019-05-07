@@ -21,12 +21,13 @@ class SimpleVocab(Vocab):
 
         self.logger.debug('initialize vocabulary from: %s', vocab_file)
 
-        with open(vocab_file, 'r') as reader:
+        with open(vocab_file, 'r', encoding='utf-8') as reader:
             for line in reader:
                 pieces = line.split()
 
                 if len(pieces) != 2:
-                    raise Exception('incorrectly formatted line in vocabulary file: %s' % line)
+                    self.logger.warning('incorrectly formatted line in vocabulary file: %s', line)
+                    continue
 
                 token = pieces[0]
                 token_count = int(pieces[1])

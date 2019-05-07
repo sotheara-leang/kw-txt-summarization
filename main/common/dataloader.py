@@ -1,7 +1,11 @@
+from main.common.common import *
+
 
 class DataLoader(object):
 
     def __init__(self, batch_size):
+        self.logger = getLogger(self)
+
         self.batch_size = batch_size
         self.generator = self.reader()
 
@@ -10,7 +14,7 @@ class DataLoader(object):
 
     def next_batch(self):
         samples = []
-        for i in range(0, self.batch_size):
+        for i in range(self.batch_size):
             sample = None
             try:
                 sample = next(self.generator)
@@ -26,18 +30,25 @@ class DataLoader(object):
     def next(self):
         try:
             return next(self.generator)
-        except Exception as e:
+        except StopIteration:
             return None
+        except Exception as e:
+            raise e
 
     def read_all(self):
         samples = []
         while True:
-            sample = self.next()
-            if sample is None:
-                self.reset()
-                break
+            try:
+                sample = self.next()
+                if sample is None:
+                    break
 
-            samples.append(sample)
+                samples.append(sample)
+            except Exception:
+                pass
+
+        self.reset()
+
         return samples
 
     def reset(self):
