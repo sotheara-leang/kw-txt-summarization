@@ -1,10 +1,16 @@
 import logging
 import torch as t
 
-from main.conf.configuration import Configuration
+from singleton_decorator import singleton
 
-#
-conf = Configuration()
+from main.common.configuration import Configuration
+
+
+@singleton
+class Bootstrap(object):
+
+    def __init__(self):
+        self.conf = Configuration('main/conf/config.yml', 'main/conf/logging.yml')
 
 
 def cuda(tensor, device=None):
@@ -19,8 +25,9 @@ def cuda(tensor, device=None):
 
 
 def getLogger(self):
-    """
-
-    :rtype:
-    """
     return logging.getLogger(self.__class__.__name__)
+
+
+
+bootstrap   = Bootstrap()
+conf        = bootstrap.conf

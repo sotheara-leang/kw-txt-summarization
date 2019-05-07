@@ -81,7 +81,7 @@ class BatchInitializer(object):
                 enc_extend_vocab_article += [TK_STOP['id']]
                 enc_extend_vocab_article += [TK_PADDING['id']] * (max_article_len - len(enc_extend_vocab_article))
             else:
-                enc_extend_vocab_article = enc_article
+                enc_extend_vocab_article = []
                 article_oovs = []
 
             enc_articles.append(enc_article)

@@ -1,21 +1,52 @@
 import logging
 import logging.config
+import re
+import os
 import yaml
 from yaml import Loader, Dumper
-from singleton_decorator import singleton
+
 from main.common.util.file_util import FileUtil
 from main.common.util.dict_util import DictUtil
 
 
-@singleton
 class Configuration:
 
-    def __init__(self):
-        with open(FileUtil.get_file_path("main/conf/config.yml"), 'r') as file:
+    def __init__(self, conf_file, log_file):
+        with open(FileUtil.get_file_path(conf_file), 'r') as file:
             self.cfg = yaml.load(file, Loader=Loader)
 
-        with open(FileUtil.get_file_path("main/conf/logging.yml"), 'r') as f:
-            config = yaml.safe_load(f.read())
+        self.init_logging(log_file)
+
+    def init_logging(self, log_file):
+        with open(FileUtil.get_file_path(log_file), 'r') as f:
+            param_matcher = re.compile(r'.*\$\{([^}^{]+)\}.*')
+
+            def param_constructor(loader, node):
+                value = node.value
+
+                params = param_matcher.findall(value)
+                for param in params:
+
+                    param_value = self.get(param)
+                    if param_value is None:
+                        try:
+                            param_value = os.environ[param]
+                        except Exception:
+                            pass
+
+                    if param_value is not None:
+                        value = value.replace('${' + param + '}', param_value)
+
+                return value
+
+            class VariableLoader(yaml.SafeLoader):
+                pass
+
+            VariableLoader.add_implicit_resolver('!param', param_matcher, None)
+            VariableLoader.add_constructor('!param', param_constructor)
+
+            config = yaml.load(f.read(), Loader=VariableLoader)
+
             logging.config.dictConfig(config)
 
     def exist(self, key):

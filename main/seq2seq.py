@@ -16,13 +16,13 @@ class Seq2Seq(nn.Module):
     def __init__(self, vocab: Vocab, embedding=None):
         super(Seq2Seq, self).__init__()
 
-        self.emb_size = conf.get('emb-size')
-        self.enc_hidden_size = conf.get('enc-hidden-size')
-        self.dec_hidden_size = conf.get('dec-hidden-size')
-        self.vocab_size = conf.get('vocab-size')
-        self.max_dec_steps = conf.get('max-dec-steps')
-        self.share_dec_weight = conf.get('share-dec-weight')
-        self.pointer_generator = conf.get('pointer-generator')
+        self.emb_size           = conf.get('emb-size')
+        self.enc_hidden_size    = conf.get('enc-hidden-size')
+        self.dec_hidden_size    = conf.get('dec-hidden-size')
+        self.vocab_size         = conf.get('vocab-size')
+        self.max_dec_steps      = conf.get('max-dec-steps')
+        self.share_dec_weight   = conf.get('share-dec-weight')
+        self.pointer_generator  = conf.get('pointer-generator')
 
         self.vocab = vocab
 

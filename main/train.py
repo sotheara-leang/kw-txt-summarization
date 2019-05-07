@@ -370,9 +370,9 @@ class Train(object):
 
             # log to tensorboard
             if self.tb_log_dir is not None:
-                self.tb_writer.add_scalar('Epoch_Train/Loss', loss, i + 1)
-                self.tb_writer.add_scalar('Epoch_Train/ML-Loss', ml_loss, i + 1)
-                self.tb_writer.add_scalar('Epoch_Train/RL-Loss', rl_loss, i + 1)
+                self.tb_writer.add_scalar('Epoch_Train/Loss', epoch_loss, i + 1)
+                self.tb_writer.add_scalar('Epoch_Train/ML-Loss', epoch_ml_loss, i + 1)
+                self.tb_writer.add_scalar('Epoch_Train/RL-Loss', epoch_rl_loss, i + 1)
 
             self.logger.debug('loss_avg\t=\t%.3f', epoch_loss)
             self.logger.debug('ml-loss-avg\t=\t%.3f', epoch_ml_loss)

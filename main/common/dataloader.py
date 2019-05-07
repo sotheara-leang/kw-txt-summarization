@@ -14,7 +14,7 @@ class DataLoader(object):
 
     def next_batch(self):
         samples = []
-        for i in range(0, self.batch_size):
+        for i in range(self.batch_size):
             sample = None
             try:
                 sample = next(self.generator)
@@ -38,11 +38,14 @@ class DataLoader(object):
     def read_all(self):
         samples = []
         while True:
-            sample = self.next()
-            if sample is None:
-                break
+            try:
+                sample = self.next()
+                if sample is None:
+                    break
 
-            samples.append(sample)
+                samples.append(sample)
+            except Exception:
+                pass
 
         self.reset()
 
