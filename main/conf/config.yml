@@ -1,13 +1,13 @@
-emb-size: 5 # 100
+emb-size: 100
 emb-file: data/train/embedding
 
-enc-hidden-size: 5 # 200
-dec-hidden-size: 10 # 400
+enc-hidden-size: 100
+dec-hidden-size: 200
 
 max-enc-steps: 100
 max-dec-steps: 100
 
-vocab-size: 500
+vocab-size: 50000
 vocab-file: data/train/vocab.txt
 
 model-file: data/train/model.ckpt
@@ -18,7 +18,7 @@ share-dec-weight: true
 device: cpu
 
 train:
-  epoch: 1
+  epoch: 50
   batch-size: 5
   log-batch: true
   log-batch-interval: 1
@@ -30,7 +30,7 @@ train:
 
   ml:
     enable: false
-    forcing-ratio: 1
+    forcing-ratio: 0.7
     forcing-decay: 0
   rl:
     enable: true

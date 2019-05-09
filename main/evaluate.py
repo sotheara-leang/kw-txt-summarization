@@ -5,7 +5,7 @@ import time
 import datetime
 import argparse
 
-from main.data.giga_world import *
+from main.data.dataloader import *
 from main.seq2seq import Seq2Seq
 from main.common.batch import *
 from main.common.util.file_util import FileUtil
@@ -15,18 +15,19 @@ from main.common.simple_vocab import SimpleVocab
 class Evaluate(object):
 
     def __init__(self):
-        self.logger = getLogger(self)
+        self.logger                 = getLogger(self)
 
-        self.max_enc_steps = conf.get('max-enc-steps')
-        self.max_dec_steps = conf.get('max-dec-steps')
+        self.max_enc_steps          = conf.get('max-enc-steps')
+        self.max_dec_steps          = conf.get('max-dec-steps')
 
-        self.batch_size = conf.get('eval:batch-size')
-        self.log_batch = conf.get('eval:log-batch')
-        self.log_batch_interval = conf.get('eval:log-batch-interval', -1)
+        self.batch_size             = conf.get('eval:batch-size')
+        self.log_batch              = conf.get('eval:log-batch')
+        self.log_batch_interval     = conf.get('eval:log-batch-interval', -1)
 
-        self.tb_log_dir = conf.get('eval:tb-log-dir')
+        self.tb_log_dir             = conf.get('eval:tb-log-dir')
 
-        self.pointer_generator = conf.get('pointer-generator')
+        self.pointer_generator      = conf.get('pointer-generator')
+        
 
         self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('vocab-file')), conf.get('vocab-size'))
 
@@ -35,8 +36,9 @@ class Evaluate(object):
         self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps,
                                                   self.pointer_generator)
 
-        self.data_loader = GigaWorldDataLoader(FileUtil.get_file_path(conf.get('eval:article-file')),
-                                               FileUtil.get_file_path(conf.get('eval:summary-file')), self.batch_size)
+        self.data_loader = DataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
+                                      FileUtil.get_file_path(conf.get('train:summary-file')),
+                                      FileUtil.get_file_path(conf.get('train:keyword-file')), self.batch_size)
 
         if self.tb_log_dir is not None:
             self.tb_writer = SummaryWriter(FileUtil.get_file_path(self.tb_log_dir))
@@ -46,10 +48,11 @@ class Evaluate(object):
 
         self.seq2seq.eval()
 
-        rouge = Rouge()
-        total_scores = []
+        rouge           = Rouge()
+        total_scores    = []
         total_eval_time = time.time()
-        batch_counter = 0
+        batch_counter   = 0
+        example_counter = 0
 
         while True:
             eval_time = time.time()
@@ -65,7 +68,8 @@ class Evaluate(object):
 
             # prediction
 
-            output = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len)
+            output = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len,
+                                  batch.keywords)
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
@@ -89,12 +93,13 @@ class Evaluate(object):
             total_scores.append(avg_score)
 
             batch_counter += 1
+            example_counter += batch.size
 
         avg_score = sum(total_scores) / len(total_scores)
 
         total_eval_time = time.time() - total_eval_time
 
-        self.logger.debug('examples: %d', len(total_scores))
+        self.logger.debug('examples: %d', example_counter)
         self.logger.debug('avg rouge-l score: %.3f', avg_score)
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
