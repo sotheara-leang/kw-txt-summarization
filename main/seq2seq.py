@@ -92,9 +92,9 @@ class Seq2Seq(nn.Module):
         kw = self.kw_encoder(kw)
 
         # encoder padding mask
-        enc_padding_mask = t.ones(batch_size, max(x_len))
+        enc_padding_mask = t.zeros(batch_size, max(x_len))
         for i in range(batch_size):
-            enc_padding_mask[i, :x_len[i]] = t.zeros(1, x_len[i])
+            enc_padding_mask[i, :x_len[i]] = t.ones(1, x_len[i])
 
         enc_padding_mask = cuda(enc_padding_mask.byte())
 

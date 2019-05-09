@@ -18,7 +18,7 @@ from main.common.simple_vocab import SimpleVocab
 class Train(object):
 
     def __init__(self):
-        self.logger                     = getLogger(self)
+        self.logger = getLogger(self)
 
         self.enc_hidden_size            = conf.get('enc-hidden-size')
         self.dec_hidden_size            = conf.get('dec-hidden-size')
@@ -35,7 +35,7 @@ class Train(object):
         self.lr_decay_epoch             = conf.get('train:lr-decay-epoch')
         self.lr_decay                   = conf.get('train:lr-decay')
 
-        self.ml_enable                  = conf.get('train:ml:enable')
+        self.ml_enable                  = conf.get('train:ml:enable', True)
         self.ml_forcing_ratio           = conf.get('train:ml:forcing-ratio', 1)
         self.ml_forcing_decay           = conf.get('train:ml:forcing-decay', 0)
 
@@ -54,7 +54,8 @@ class Train(object):
 
         self.seq2seq = cuda(Seq2Seq(self.vocab))
 
-        self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps, self.pointer_generator)
+        self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps,
+                                                  self.pointer_generator)
 
         self.data_loader = DataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
                                       FileUtil.get_file_path(conf.get('train:summary-file')),
@@ -69,8 +70,6 @@ class Train(object):
 
     def train_batch(self, batch, epoch_counter):
         start_time = time.time()
-
-        rouge = Rouge()
 
         ## encoding input
 
@@ -99,7 +98,7 @@ class Train(object):
         ## RL
 
         rl_enable = self.rl_enable
-        if rl_enable:
+        if rl_enable and self.ml_enable is True:
             if self.rl_transit_epoch > 0:
                 rl_enable = epoch_counter >= self.rl_transit_epoch
             else:
@@ -129,6 +128,8 @@ class Train(object):
 
             # calculate rouge score
 
+            rouge = Rouge()
+
             sampling_scores = rouge.get_scores(list(sampling_summaries), list(reference_summaries))
             sampling_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in sampling_scores]))
 
@@ -139,21 +140,22 @@ class Train(object):
 
             sampling_log_prob = sampling_output[1]
 
-            rl_loss = -(sampling_scores - baseline_scores) * sampling_log_prob
+            rl_loss = (baseline_scores - sampling_scores) * sampling_log_prob
             rl_loss = t.mean(rl_loss)
 
             # reward
 
-            reward = t.mean(sampling_scores - baseline_scores)
+            reward = t.mean(sampling_scores)
+
+            rl_weight = self.rl_weight if self.ml_enable else 1
         else:
             rl_loss = cuda(t.zeros(1))
             reward = 0
+            rl_weight = 0
 
         ## total loss
 
-        rl_weight = self.rl_weight if rl_enable else 0
-
-        loss = rl_weight * rl_loss + (1 - rl_weight) * ml_loss
+        loss = (1 - rl_weight) * ml_loss + rl_weight * rl_loss
 
         self.optimizer.zero_grad()
 
@@ -164,24 +166,28 @@ class Train(object):
 
         self.optimizer.step()
 
+        loss = loss.detach()
+        ml_loss = ml_loss.detach()
+        rl_loss = rl_loss.detach()
+
         time_spent = time.time() - start_time
 
         return loss, ml_loss, rl_loss, reward, rl_enable, time_spent
 
     def train_ml(self, enc_outputs, dec_hidden, dec_cell, kw, batch, epoch_counter):
-        y                       = None
-        loss                    = None
-        enc_temporal_score      = None
-        pre_dec_hiddens         = None
-        extend_vocab_x          = batch.extend_vocab_articles
-        enc_padding_mask        = batch.articles_padding_mask
-        target_y                = batch.summaries
-        max_dec_len             = max(batch.summaries_len)
-        max_ovv_len             = max([len(oov) for oov in batch.oovs])
-        dec_input               = batch.summaries[:, 0]
-        enc_ctx_vector          = cuda(t.zeros(batch.size, 2 * self.enc_hidden_size))
+        y                   = None
+        loss                = None
+        enc_temporal_score  = None
+        pre_dec_hiddens     = None
+        extend_vocab_x      = batch.extend_vocab_articles
+        enc_padding_mask    = batch.articles_padding_mask
+        target_y            = batch.summaries
+        max_dec_len         = max(batch.summaries_len)
+        max_ovv_len         = max([len(oov) for oov in batch.oovs])
+        dec_input           = batch.summaries[:, 0]
+        enc_ctx_vector      = cuda(t.zeros(batch.size, 2 * self.enc_hidden_size))
 
-        for i in range(max_dec_len - 1):
+        for i in range(1, max_dec_len):
             ## decoding
             vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_temporal_score, _ = self.seq2seq.decode(
                 dec_input,
@@ -198,13 +204,13 @@ class Train(object):
 
             ## loss
 
-            step_loss = self.criterion(t.log(vocab_dist + 1e-20), target_y[:, i + 1])
+            step_loss = self.criterion(t.log(vocab_dist + 1e-20), target_y[:, i])
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)
 
             ## output
 
-            dec_output = t.multinomial(vocab_dist, 1).squeeze().detach()
+            dec_output = t.multinomial(vocab_dist, 1).squeeze(1).detach()
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
@@ -214,7 +220,7 @@ class Train(object):
 
             use_ground_truth = cuda((t.rand(batch.size) < forcing_ratio).long())
 
-            dec_input = use_ground_truth * target_y[:, i + 1] + (1 - use_ground_truth) * dec_output
+            dec_input = use_ground_truth * target_y[:, i] + (1 - use_ground_truth) * dec_output
 
             ## if next decoder input is oov, change it to TK_UNKNOWN
 
@@ -222,7 +228,8 @@ class Train(object):
 
             dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN['id']
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat(
+                [pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
         loss = t.sum(loss, dim=1) / batch.summaries_len.float()
 
@@ -241,7 +248,7 @@ class Train(object):
         stop_decoding_mask      = cuda(t.zeros(batch.size))
         decoding_padding_mask   = []
 
-        for i in range(self.max_dec_steps):
+        for i in range(1, self.max_dec_steps):
             ## decoding
             vocab_dist, dec_hidden, dec_cell, _, enc_temporal_score, _ = self.seq2seq.decode(
                 dec_input,
@@ -263,7 +270,8 @@ class Train(object):
 
                 step_log_prob = sampling_dist.log_prob(dec_output)
 
-                log_prob = step_log_prob.unsqueeze(1) if log_prob is None else t.cat([log_prob, step_log_prob.unsqueeze(1)], dim=1)
+                log_prob = step_log_prob.unsqueeze(1) if log_prob is None else t.cat(
+                    [log_prob, step_log_prob.unsqueeze(1)], dim=1)
             else:
                 ## greedy search
                 _, dec_output = t.max(vocab_dist, dim=1)
@@ -291,7 +299,8 @@ class Train(object):
 
             dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN['id']
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat(
+                [pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
         # masking padding - not considering sampled words with padding mask = 0
 
@@ -345,19 +354,13 @@ class Train(object):
 
                 epoch_time_spent += time_spent
 
-                if self.log_batch:
+                if self.log_batch and self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
+                    self.logger.debug('EP\t%d,\tBAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f,\ttime=%s', i + 1, batch_counter + 1,
+                        loss, ml_loss, rl_loss, samples_reward, str(datetime.timedelta(seconds=time_spent)))
 
-                    if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                        if enable_rl:
-                            self.logger.debug('EP\t%d,\tBAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f,\ttime=%s', i + 1, batch_counter + 1,
-                                loss, ml_loss, rl_loss, samples_reward, str(datetime.timedelta(seconds=time_spent)))
-                        else:
-                            self.logger.debug('EP\t%d,\tBAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=NA,\ttime=%s', i + 1, batch_counter + 1,
-                                              loss, ml_loss, str(datetime.timedelta(seconds=time_spent)))
-
-                total_loss += loss
-                total_ml_loss += ml_loss
-                total_rl_loss += rl_loss
+                total_loss += loss.item()
+                total_ml_loss += ml_loss.item()
+                total_rl_loss += rl_loss.item()
                 total_samples_award += samples_reward
 
                 batch_counter += 1
@@ -376,12 +379,9 @@ class Train(object):
 
             self.logger.debug('loss_avg\t=\t%.3f', epoch_loss)
             self.logger.debug('ml-loss-avg\t=\t%.3f', epoch_ml_loss)
-            if enable_rl:
-                self.logger.debug('rl-loss_avg\t=\t%.3f,\t reward=%.3f', epoch_rl_loss, epoch_samples_award)
-            else:
-                self.logger.debug('rl-loss_avg\t=\tNA')
-
-            self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=epoch_time_spent)))
+            self.logger.debug('rl-loss_avg\t=\t%.3f,\t reward=%.3f', epoch_rl_loss, epoch_samples_award)
+            self.logger.debug('rl-loss_avg\t=\tNA')
+            self.logger.debug('time\t=\t%s', str(datetime.timedelta(seconds=epoch_time_spent)))
 
             # reload data set
             self.data_loader.reset()
@@ -403,10 +403,11 @@ class Train(object):
 
         self.seq2seq.eval()
 
-        rouge           = Rouge()
-        total_scores    = []
+        rouge = Rouge()
+        total_scores = []
         total_eval_time = time.time()
-        batch_counter   = 0
+        batch_counter = 0
+        example_counter = 0
 
         while True:
             eval_time = time.time()
@@ -438,17 +439,19 @@ class Train(object):
             eval_time = time.time() - eval_time
 
             if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                self.logger.debug('BAT\t%d:\t\tavg rouge_l score=%.3f\t\ttime=%s', batch_counter + 1, avg_score, str(datetime.timedelta(seconds=eval_time)))
+                self.logger.debug('BAT\t%d:\t\tavg rouge_l score=%.3f\t\ttime=%s', batch_counter + 1, avg_score,
+                                  str(datetime.timedelta(seconds=eval_time)))
 
             total_scores.append(avg_score)
 
             batch_counter += 1
+            example_counter += batch.size
 
         total_avg_score = sum(total_scores) / len(total_scores)
 
         total_eval_time = time.time() - total_eval_time
 
-        self.logger.debug('examples: %d', len(total_scores))
+        self.logger.debug('examples: %d', example_counter)
         self.logger.debug('avg rouge-l score: %.3f', total_avg_score)
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
@@ -471,7 +474,7 @@ class Train(object):
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
             self.logger.debug('epoch: %s', str(epoch + 1))
-            self.logger.debug('loss: %s', str(loss.item()))
+            self.logger.debug('loss: %s', str(loss))
         else:
             self.logger.warning('>>> cannot load pre-trained model - file not exist: %s', model_file)
 

@@ -38,21 +38,22 @@ class EncoderAttention(nn.Module):
 
         score = self.v(t.tanh(dec_out + enc_out + kw_out)).squeeze(2)  # B, L
 
-        score = score.masked_fill_(enc_padding_mask, -float('inf'))
-
-        score = f.softmax(score, dim=1)
-
         # temporal normalization
 
+        exp_score = t.exp(score)
+
         if enc_temporal_score is None:
-            enc_temporal_score = score
+            score = exp_score
+            enc_temporal_score = exp_score
         else:
-            score = score / (enc_temporal_score + 1e-10)
-            enc_temporal_score = enc_temporal_score + score
+            score = exp_score / enc_temporal_score
+            enc_temporal_score = enc_temporal_score + exp_score
 
         # normalization
 
-        attention = score / (t.sum(score, dim=1).unsqueeze(1) + 1e-10)  # B, L
+        score = score * enc_padding_mask.float()
+
+        attention = score / t.sum(score, dim=1).unsqueeze(1)  # B, L
 
         # context vector
 

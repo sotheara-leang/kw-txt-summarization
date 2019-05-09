@@ -47,6 +47,9 @@ class BatchInitializer(object):
         summaries   = []
         keywords    = []
 
+        # sort by article length
+        samples = sorted(samples, key=lambda s: len(s[0].split()), reverse=True)
+
         for sample in samples:
             article_, summaries_, keywords_ = sample
 
@@ -71,7 +74,7 @@ class BatchInitializer(object):
         for article_words in articles_words:
             enc_article = self.vocab.words2ids(article_words) + [TK_STOP['id']]
 
-            enc_article_padding_mask = [0] * len(enc_article) + [1] * (max_article_len - len(enc_article))
+            enc_article_padding_mask = [1] * len(enc_article) + [0] * (max_article_len - len(enc_article))
 
             enc_article += [TK_PADDING['id']] * (max_article_len - len(enc_article))
 
@@ -132,10 +135,6 @@ class BatchInitializer(object):
 
         enc_keywords = cuda(t.tensor(enc_keywords))
         keywords_len = cuda(t.tensor(kws_len))
-
-        # sort tensor
-        articles_len, indices = articles_len.sort(0, descending=True)
-        enc_articles = enc_articles[indices]
 
         return Batch(enc_articles,
                      articles_len,
