@@ -2,20 +2,32 @@ import logging
 import torch as t
 
 from singleton_decorator import singleton
-
 from main.common.configuration import Configuration
+from main.common.logger import Logger
 
+
+ctx = globals()
 
 @singleton
-class Bootstrap(object):
+class AppContext(object):
 
-    def __init__(self):
-        self.conf = Configuration('main/conf/config.yml', 'main/conf/logging.yml')
+    def __init__(self, conf_file=None):
+        if conf_file is None:
+            conf_file = 'main/conf/config.yml'
 
+        self.conf = Configuration(conf_file)
+
+        if self.conf.get('logging:enable') is True:
+            log_dir = self.conf.get('logging:conf-file', 'main/conf/logging.yml')
+            Logger(log_dir)
+        else:
+            logging.basicConfig(level=logging.DEBUG)
+
+        ctx['conf'] = self.conf
 
 def cuda(tensor, device=None):
     if device is None:
-        device = conf.get('device')
+        device = ctx['conf'].get('device')
         if device is None:
             device = t.device('cuda' if t.cuda.is_available() else 'cpu')
         else:
@@ -23,11 +35,10 @@ def cuda(tensor, device=None):
 
     return tensor.to(device)
 
-
-def getLogger(self):
+def logger(self):
     return logging.getLogger(self.__class__.__name__)
 
-
-
-bootstrap   = Bootstrap()
-conf        = bootstrap.conf
+def conf(key=None, default=None):
+    if key is None:
+        return ctx['conf']
+    return ctx['conf'].get(key, default)

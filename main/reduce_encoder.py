@@ -9,9 +9,9 @@ class ReduceEncoder(nn.Module):
     def __init__(self):
         super(ReduceEncoder, self).__init__()
 
-        self.reduce_h = nn.Linear(2 * conf.get('enc-hidden-size'), conf.get('dec-hidden-size'))
+        self.reduce_h = nn.Linear(2 * conf('enc-hidden-size'), conf('dec-hidden-size'))
 
-        self.reduce_c = nn.Linear(2 * conf.get('enc-hidden-size'), conf.get('dec-hidden-size'))
+        self.reduce_c = nn.Linear(2 * conf('enc-hidden-size'), conf('dec-hidden-size'))
 
     '''
         :params

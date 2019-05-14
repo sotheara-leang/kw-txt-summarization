@@ -10,7 +10,7 @@ class SimpleVocab(Vocab):
     def __init__(self, vocab_file, vocab_size=None):
         super(SimpleVocab, self).__init__({}, {})
 
-        self.logger = getLogger(self)
+        self.logger = logger(self)
 
         # read the vocab file
 

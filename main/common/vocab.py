@@ -10,10 +10,16 @@ TK_STOP         = {'word': '[STOP]',    'id': 3}
 class Vocab(object):
 
     def __init__(self, word2id, id2word):
-        self.logger = getLogger(self)
+        self.logger = logger(self)
 
         self._word2id = word2id
         self._id2word = id2word
+
+    def word2id_map(self):
+        return self._word2id
+
+    def id2word_map(self):
+        return self._id2word
 
     def word2id(self, word):
         if word not in self._word2id:

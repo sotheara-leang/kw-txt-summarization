@@ -1,36 +1,34 @@
 import torch.nn as nn
-import bcolz
 import numpy as np
+import pickle
 
 from main.common.vocab import *
 
 
 class GloveEmbedding(nn.Embedding):
 
-    def __init__(self, emb_file):
-        vectors = bcolz.open(emb_file)[:]
+    def __init__(self, emb_file, vocab):
+        data = self.load_emb(emb_file)
 
-        default_vectors = []
-        for token in [TK_PADDING, TK_UNKNOWN, TK_START, TK_STOP]:
-            vector = np.zeros(vectors.shape[1])
-            vector[token['id']] = 1 if token['id'] != 0 else 0
+        word2vect = data['word2vect']
 
-            default_vectors.append(vector)
+        glove_embedding = np.asarray(list(word2vect.values()))
 
-        default_vectors = np.asarray(default_vectors)
+        mean = np.mean(glove_embedding, axis=0)
+        std = glove_embedding.std(axis=0)
 
-        vectors = np.concatenate((default_vectors, vectors), axis=0)
+        vocab_size = vocab.size()
+        emb_size = glove_embedding.shape[1]
 
-        n_vocab, vocab_dim = vectors.shape
+        embedding = np.random.normal(mean, std, [vocab_size, emb_size])
 
-        super(GloveEmbedding, self).__init__(num_embeddings=n_vocab,
-                                             embedding_dim=vocab_dim, padding_idx=0, _weight=t.FloatTensor(vectors))
+        for id_, word in vocab.id2word_map().items():
+            if word in word2vect:
+                embedding[id_] = word2vect[word]
 
-    def forward(self, x):
-        return self.embedding(x)
+        super(GloveEmbedding, self).__init__(num_embeddings=vocab_size, embedding_dim=emb_size,
+                                             padding_idx=TK_PADDING['id'], _weight=t.FloatTensor(embedding))
 
-
-
-
-
-
+    def load_emb(self, emb_file):
+        with open(emb_file, 'rb') as f:
+            return pickle.load(f)

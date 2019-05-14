@@ -8,9 +8,9 @@ class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
 
-        self.lstm = nn.LSTMCell(conf.get('emb-size'), conf.get('dec-hidden-size'))
+        self.lstm = nn.LSTMCell(conf('emb-size'), conf('dec-hidden-size'))
 
-        self.y_concat = nn.Linear(2 * conf.get('enc-hidden-size') + conf.get('emb-size'), conf.get('emb-size'))
+        self.y_concat = nn.Linear(2 * conf('enc-hidden-size') + conf('emb-size'), conf('emb-size'))
 
     '''
         :params
