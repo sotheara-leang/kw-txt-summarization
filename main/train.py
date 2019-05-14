@@ -3,10 +3,10 @@ import torch.nn as nn
 from torch import autograd
 from torch.distributions import Categorical
 from tensorboardX import SummaryWriter
-import os
 import time
 import datetime
 import argparse
+import os
 
 from main.data.dataloader import *
 from main.seq2seq import Seq2Seq
@@ -18,55 +18,56 @@ from main.common.simple_vocab import SimpleVocab
 class Train(object):
 
     def __init__(self):
-        self.logger = getLogger(self)
+        self.logger = logger(self)
 
-        self.enc_hidden_size            = conf.get('enc-hidden-size')
-        self.dec_hidden_size            = conf.get('dec-hidden-size')
+        self.enc_hidden_size        = conf('enc-hidden-size')
+        self.dec_hidden_size        = conf('dec-hidden-size')
 
-        self.max_enc_steps              = conf.get('max-enc-steps')
-        self.max_dec_steps              = conf.get('max-dec-steps')
+        self.max_enc_steps          = conf('max-enc-steps')
+        self.max_dec_steps          = conf('max-dec-steps')
 
-        self.epoch                      = conf.get('train:epoch')
-        self.batch_size                 = conf.get('train:batch-size')
-        self.clip_gradient_max_norm     = conf.get('train:clip-gradient-max-norm')
-        self.log_batch                  = conf.get('train:log-batch')
-        self.log_batch_interval         = conf.get('train:log-batch-interval', -1)
-        self.lr                         = conf.get('train:lr')
-        self.lr_decay_epoch             = conf.get('train:lr-decay-epoch')
-        self.lr_decay                   = conf.get('train:lr-decay')
+        self.epoch                  = conf('train:epoch')
+        self.batch_size             = conf('train:batch-size')
+        self.clip_gradient_max_norm = conf('train:clip-gradient-max-norm')
+        self.log_batch              = conf('train:log-batch')
+        self.log_batch_interval     = conf('train:log-batch-interval', -1)
+        self.lr                     = conf('train:lr')
+        self.lr_decay_epoch         = conf('train:lr-decay-epoch')
+        self.lr_decay               = conf('train:lr-decay')
 
-        self.ml_enable                  = conf.get('train:ml:enable', True)
-        self.ml_forcing_ratio           = conf.get('train:ml:forcing-ratio', 1)
-        self.ml_forcing_decay           = conf.get('train:ml:forcing-decay', 0)
+        self.ml_enable              = conf('train:ml:enable', True)
+        self.ml_forcing_ratio       = conf('train:ml:forcing-ratio', 1)
+        self.ml_forcing_decay       = conf('train:ml:forcing-decay', 0)
 
-        self.rl_enable                  = conf.get('train:rl:enable')
-        self.rl_weight                  = conf.get('train:rl:weight')
-        self.rl_transit_epoch           = conf.get('train:rl:transit-epoch', -1)
-        self.rl_transit_decay           = conf.get('train:rl:transit-decay', 0)
+        self.rl_enable              = conf('train:rl:enable')
+        self.rl_weight              = conf('train:rl:weight')
+        self.rl_transit_epoch       = conf('train:rl:transit-epoch', -1)
+        self.rl_transit_decay       = conf('train:rl:transit-decay', 0)
 
-        self.tb_log_dir                 = conf.get('train:tb-log-dir')
+        self.save_model_per_epoch   = conf('train:save-model-per-epoch')
+        self.pointer_generator      = conf('pointer-generator')
 
-        self.save_model_per_epoch       = conf.get('train:save-model-per-epoch')
-        self.pointer_generator          = conf.get('pointer-generator')
+        # tensorboard
+        self.tb_writer = None
+        if conf('train:tb:enable') is True:
+            tb_log_dir = conf('train:tb:log-dir')
+            if tb_log_dir is not None:
+                self.tb_writer = SummaryWriter(FileUtil.get_file_path(tb_log_dir))
 
-
-        self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('vocab-file')), conf.get('vocab-size'))
+        self.vocab = SimpleVocab(FileUtil.get_file_path(conf('vocab-file')), conf('vocab-size'))
 
         self.seq2seq = cuda(Seq2Seq(self.vocab))
 
         self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps,
                                                   self.pointer_generator)
 
-        self.data_loader = DataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
-                                      FileUtil.get_file_path(conf.get('train:summary-file')),
-                                      FileUtil.get_file_path(conf.get('train:keyword-file')), self.batch_size)
+        self.data_loader = DataLoader(FileUtil.get_file_path(conf('train:article-file')),
+                                      FileUtil.get_file_path(conf('train:summary-file')),
+                                      FileUtil.get_file_path(conf('train:keyword-file')), self.batch_size)
 
         self.optimizer = t.optim.Adam(self.seq2seq.parameters(), lr=self.lr)
 
         self.criterion = nn.NLLLoss(reduction='none', ignore_index=TK_PADDING['id'])
-
-        if self.tb_log_dir is not None:
-            self.tb_writer = SummaryWriter(FileUtil.get_file_path(self.tb_log_dir))
 
     def train_batch(self, batch, epoch_counter):
         start_time = time.time()
@@ -117,11 +118,15 @@ class Train(object):
             sampling_summaries = []
             sampling_outputs = sampling_output[0].tolist()
             for idx, summary in enumerate(sampling_outputs):
+                summary = [w for w in summary if w != TK_STOP['id']]
+
                 sampling_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
             baseline_summaries = []
             baseline_outputs = baseline_output[0].tolist()
             for idx, summary in enumerate(baseline_outputs):
+                summary = [w for w in summary if w != TK_STOP['id']]
+
                 baseline_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
             reference_summaries = batch.original_summaries
@@ -175,21 +180,21 @@ class Train(object):
         return loss, ml_loss, rl_loss, reward, rl_enable, time_spent
 
     def train_ml(self, enc_outputs, dec_hidden, dec_cell, kw, batch, epoch_counter):
-        y                   = None
-        loss                = None
-        enc_temporal_score  = None
-        pre_dec_hiddens     = None
-        extend_vocab_x      = batch.extend_vocab_articles
-        enc_padding_mask    = batch.articles_padding_mask
-        target_y            = batch.summaries
-        max_dec_len         = max(batch.summaries_len)
-        max_ovv_len         = max([len(oov) for oov in batch.oovs])
-        dec_input           = batch.summaries[:, 0]
-        enc_ctx_vector      = cuda(t.zeros(batch.size, 2 * self.enc_hidden_size))
+        y = None
+        loss = None
+        enc_temporal_score = None
+        pre_dec_hiddens = None
+        extend_vocab_x = batch.extend_vocab_articles
+        enc_padding_mask = batch.articles_padding_mask
+        target_y = batch.summaries
+        max_dec_len = max(batch.summaries_len)
+        max_ovv_len = max([len(oov) for oov in batch.oovs])
+        dec_input = batch.summaries[:, 0]
+        enc_ctx_vector = cuda(t.zeros(batch.size, 2 * self.enc_hidden_size))
 
         for i in range(1, max_dec_len):
             ## decoding
-            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_temporal_score, _ = self.seq2seq.decode(
+            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, _, enc_temporal_score, _, _ = self.seq2seq.decode(
                 dec_input,
                 dec_hidden,
                 dec_cell,
@@ -236,21 +241,21 @@ class Train(object):
         return y, loss
 
     def train_rl(self, enc_outputs, dec_hidden, dec_cell, kw, batch, sampling):
-        y                       = None
-        log_prob                = None
-        enc_temporal_score      = None
-        pre_dec_hiddens         = None
-        enc_padding_mask        = batch.articles_padding_mask
-        extend_vocab_x          = batch.extend_vocab_articles
-        max_ovv_len             = max([len(vocab) for vocab in batch.oovs])
-        dec_input               = batch.summaries[:, 0]
-        enc_ctx_vector          = cuda(t.zeros(batch.size, 2 * self.enc_hidden_size))
-        stop_decoding_mask      = cuda(t.zeros(batch.size))
-        decoding_padding_mask   = []
+        y = None
+        log_prob = None
+        enc_temporal_score = None
+        pre_dec_hiddens = None
+        enc_padding_mask = batch.articles_padding_mask
+        extend_vocab_x = batch.extend_vocab_articles
+        max_ovv_len = max([len(vocab) for vocab in batch.oovs])
+        dec_input = batch.summaries[:, 0]
+        enc_ctx_vector = cuda(t.zeros(batch.size, 2 * self.enc_hidden_size))
+        stop_decoding_mask = cuda(t.zeros(batch.size))
+        decoding_padding_mask = []
 
         for i in range(1, self.max_dec_steps):
             ## decoding
-            vocab_dist, dec_hidden, dec_cell, _, enc_temporal_score, _ = self.seq2seq.decode(
+            vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score, _, _ = self.seq2seq.decode(
                 dec_input,
                 dec_hidden,
                 dec_cell,
@@ -315,7 +320,7 @@ class Train(object):
 
         return y, log_prob
 
-    def train(self):
+    def train(self, start_epoch):
         self.seq2seq.train()
 
         self.logger.debug('>>> training:')
@@ -325,7 +330,7 @@ class Train(object):
 
         criterion_scheduler = t.optim.lr_scheduler.StepLR(self.optimizer, self.lr_decay_epoch, self.lr_decay)
 
-        for i in range(self.epoch):
+        for i in range(start_epoch, self.epoch):
             self.logger.debug('========================= epoch %i/%i =========================', i + 1, self.epoch)
 
             batch_counter = 0
@@ -354,8 +359,11 @@ class Train(object):
 
                 epoch_time_spent += time_spent
 
-                if self.log_batch and self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                    self.logger.debug('EP\t%d,\tBAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f,\ttime=%s', i + 1, batch_counter + 1,
+                if self.log_batch and self.log_batch_interval <= 0 or (
+                        batch_counter + 1) % self.log_batch_interval == 0:
+                    self.logger.debug(
+                        'EP\t%d,\tBAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f,\ttime=%s', i + 1,
+                        batch_counter + 1,
                         loss, ml_loss, rl_loss, samples_reward, str(datetime.timedelta(seconds=time_spent)))
 
                 total_loss += loss.item()
@@ -372,7 +380,7 @@ class Train(object):
             epoch_samples_award = total_samples_award / batch_counter
 
             # log to tensorboard
-            if self.tb_log_dir is not None:
+            if self.tb_writer is not None:
                 self.tb_writer.add_scalar('Epoch_Train/Loss', epoch_loss, i + 1)
                 self.tb_writer.add_scalar('Epoch_Train/ML-Loss', epoch_ml_loss, i + 1)
                 self.tb_writer.add_scalar('Epoch_Train/RL-Loss', epoch_rl_loss, i + 1)
@@ -386,16 +394,17 @@ class Train(object):
             # reload data set
             self.data_loader.reset()
 
-            # save model per epoch
-            if i == self.epoch - 1 or (self.save_model_per_epoch is not None and (i + 1) % self.save_model_per_epoch == 0):
-                self.save_model({'epoch': i, 'loss': epoch_loss}, i != self.epoch - 1)
+            # save model
+            if i == self.epoch - 1 or (
+                    self.save_model_per_epoch is not None and (i + 1) % self.save_model_per_epoch == 0):
+                self.save_model({'epoch': i, 'loss': epoch_loss})
 
         train_time = time.time() - train_time
 
         self.logger.debug('time\t=\t%s', str(datetime.timedelta(seconds=train_time)))
 
     def evaluate(self):
-        is_enable = conf.get('train:eval', False)
+        is_enable = conf('train:eval', False)
         if is_enable is False:
             return
 
@@ -423,10 +432,12 @@ class Train(object):
 
             # prediction
 
-            output = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
+            output, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len)
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
+                summary = [w for w in summary if w != TK_STOP['id']]
+
                 gen_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
             reference_summaries = batch.original_summaries
@@ -439,7 +450,7 @@ class Train(object):
             eval_time = time.time() - eval_time
 
             if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                self.logger.debug('BAT\t%d:\t\tavg rouge_l score=%.3f\t\ttime=%s', batch_counter + 1, avg_score,
+                self.logger.debug('BAT\t%d:\t\tavg rouge_l score=%f\t\ttime=%s', batch_counter + 1, avg_score,
                                   str(datetime.timedelta(seconds=eval_time)))
 
             total_scores.append(avg_score)
@@ -452,13 +463,16 @@ class Train(object):
         total_eval_time = time.time() - total_eval_time
 
         self.logger.debug('examples: %d', example_counter)
-        self.logger.debug('avg rouge-l score: %.3f', total_avg_score)
+        self.logger.debug('avg rouge-l score: %f', total_avg_score)
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
     def load_model(self):
-        model_file = conf.get('train:load-model-file')
+        epoch = 0
+
+        model_file = conf('train:load-model-file')
         if model_file is None:
-            return
+            return epoch
+
         model_file = FileUtil.get_file_path(model_file)
 
         if os.path.isfile(model_file):
@@ -473,13 +487,15 @@ class Train(object):
 
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-            self.logger.debug('epoch: %s', str(epoch + 1))
+            self.logger.debug('epoch: %s', str(epoch))
             self.logger.debug('loss: %s', str(loss))
         else:
-            self.logger.warning('>>> cannot load pre-trained model - file not exist: %s', model_file)
+            raise Exception('>>> error loading model - file not exist: %s' % model_file)
 
-    def save_model(self, args, save_epoch):
-        model_file = conf.get('train:save-model-file')
+        return epoch
+
+    def save_model(self, param):
+        model_file = conf('train:save-model-file')
         if not model_file:
             return
 
@@ -489,33 +505,41 @@ class Train(object):
         if not os.path.exists(file_dir):
             os.makedirs(file_dir)
 
-        if save_epoch is True:
-            dot = model_file.rfind('.')
-            if dot != -1:
-                model_file = model_file[:dot] + '-' + str(args['epoch'] + 1) + model_file[dot:]
+        dot = model_file.rfind('.')
+        if dot != -1:
+            model_file = model_file[:dot] + '-' + str(param['epoch'] + 1) + model_file[dot:]
+        else:
+            model_file = model_file + '-' + str(param['epoch'] + 1)
 
         self.logger.debug('>>> save model into: ' + model_file)
 
+        self.logger.debug('epoch: %s', str(param['epoch'] + 1))
+        self.logger.debug('loss: %s', str(param['loss']))
+
         t.save({
-            'epoch': args['epoch'],
-            'loss': args['loss'],
+            'epoch': param['epoch'] + 1,
+            'loss': param['loss'],
             'model_state_dict': self.seq2seq.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
         }, FileUtil.get_file_path(model_file))
 
     def run(self):
-        # display configuration
-        self.logger.debug('>>> configuration: \n' + conf.dump().strip())
+        try:
+            # display configuration
+            self.logger.debug('>>> configuration: \n' + conf().dump().strip())
 
-        # load pre-trained model
-        self.load_model()
+            # load pre-trained model
+            current_epoch = self.load_model()
 
-        # train
-        with autograd.detect_anomaly():
-            self.train()
+            # train
+            with autograd.detect_anomaly():
+                self.train(current_epoch)
 
-        # evaluate
-        self.evaluate()
+            # evaluate
+            self.evaluate()
+        except Exception as e:
+            self.logger.error(e, exc_info=True)
+            raise e
 
 
 if __name__ == "__main__":
@@ -524,9 +548,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    config_file = args.conf_file
-    if config_file is not None:
-        conf.merge(config_file)
+    AppContext(args.conf_file)
 
     train = Train()
     train.run()

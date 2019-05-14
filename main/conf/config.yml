@@ -1,8 +1,8 @@
-emb-size: 100
-emb-file: data/train/embedding
+emb-size: 50
+emb-file: data/train/embedding.bin
 
-enc-hidden-size: 100
-dec-hidden-size: 200
+enc-hidden-size: 50
+dec-hidden-size: 100
 
 max-enc-steps: 100
 max-dec-steps: 100
@@ -10,37 +10,43 @@ max-dec-steps: 100
 vocab-size: 50000
 vocab-file: data/train/vocab.txt
 
-model-file: data/train/model.ckpt
+model-file: data/result/mode.ckpt
 
 pointer-generator: true
 share-dec-weight: true
 
 device: cpu
 
+logging:
+  enable: true
+  conf-file:
+
 train:
-  epoch: 50
-  batch-size: 5
+  epoch: 100
+  batch-size: 10
   log-batch: true
   log-batch-interval: 1
-  clip-gradient-max-norm:
+  clip-gradient-max-norm: 1
 
   lr: 0.001
   lr-decay: 1
   lr-decay-epoch: 50
 
   ml:
-    enable: false
-    forcing-ratio: 0.7
+    enable: true
+    forcing-ratio: 1
     forcing-decay: 0
   rl:
-    enable: true
-    transit-epoch: 1
+    enable: false
+    transit-epoch: -1
     transit-decay: 0
     weight: 0.9984
 
   eval: true
 
-  tb-log-dir: logs/giga/
+  tb:
+    enable: true
+    log-dir: ${PROJ_HOME}/logs/giga/
 
   article-file: data/train/article.txt
   summary-file: data/train/summary.txt
@@ -51,9 +57,9 @@ train:
   save-model-per-epoch:
 
 eval:
-  batch-size: 20
+  batch-size: 3
   log-batch: true
-  log-batch-interval: 2
+  log-batch-interval: 1
 
   load-model-file: data/result/model.ckpt
 

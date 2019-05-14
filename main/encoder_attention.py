@@ -9,11 +9,11 @@ class EncoderAttention(nn.Module):
     def __init__(self):
         super(EncoderAttention, self).__init__()
 
-        self.w_e = nn.Linear(2 * conf.get('enc-hidden-size'), conf.get('dec-hidden-size'), False)
-        self.w_d = nn.Linear(conf.get('dec-hidden-size'), conf.get('dec-hidden-size'), False)
-        self.w_k = nn.Linear(conf.get('emb-size'), conf.get('dec-hidden-size'))
+        self.w_e = nn.Linear(2 * conf('enc-hidden-size'), conf('dec-hidden-size'), False)
+        self.w_d = nn.Linear(conf('dec-hidden-size'), conf('dec-hidden-size'), False)
+        self.w_k = nn.Linear(conf('emb-size'), conf('dec-hidden-size'))
 
-        self.v = nn.Linear(conf.get('dec-hidden-size'), 1, False)
+        self.v = nn.Linear(conf('dec-hidden-size'), 1, False)
 
     '''
         :params

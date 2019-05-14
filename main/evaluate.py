@@ -1,5 +1,4 @@
 from rouge import Rouge
-from tensorboardX import SummaryWriter
 import os
 import time
 import datetime
@@ -15,43 +14,38 @@ from main.common.simple_vocab import SimpleVocab
 class Evaluate(object):
 
     def __init__(self):
-        self.logger                 = getLogger(self)
+        self.logger = logger(self)
 
-        self.max_enc_steps          = conf.get('max-enc-steps')
-        self.max_dec_steps          = conf.get('max-dec-steps')
+        self.max_enc_steps      = conf('max-enc-steps')
+        self.max_dec_steps      = conf('max-dec-steps')
 
-        self.batch_size             = conf.get('eval:batch-size')
-        self.log_batch              = conf.get('eval:log-batch')
-        self.log_batch_interval     = conf.get('eval:log-batch-interval', -1)
+        self.batch_size         = conf('eval:batch-size')
+        self.log_batch          = conf('eval:log-batch')
+        self.log_batch_interval = conf('eval:log-batch-interval', -1)
 
-        self.tb_log_dir             = conf.get('eval:tb-log-dir')
+        self.pointer_generator  = conf('pointer-generator')
 
-        self.pointer_generator      = conf.get('pointer-generator')
-        
 
-        self.vocab = SimpleVocab(FileUtil.get_file_path(conf.get('vocab-file')), conf.get('vocab-size'))
+        self.vocab = SimpleVocab(FileUtil.get_file_path(conf('vocab-file')), conf('vocab-size'))
 
         self.seq2seq = cuda(Seq2Seq(self.vocab))
 
         self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps,
                                                   self.pointer_generator)
 
-        self.data_loader = DataLoader(FileUtil.get_file_path(conf.get('train:article-file')),
-                                      FileUtil.get_file_path(conf.get('train:summary-file')),
-                                      FileUtil.get_file_path(conf.get('train:keyword-file')), self.batch_size)
-
-        if self.tb_log_dir is not None:
-            self.tb_writer = SummaryWriter(FileUtil.get_file_path(self.tb_log_dir))
+        self.data_loader = DataLoader(FileUtil.get_file_path(conf('train:article-file')),
+                                      FileUtil.get_file_path(conf('train:summary-file')),
+                                      FileUtil.get_file_path(conf('train:keyword-file')), self.batch_size)
 
     def evaluate(self):
         self.logger.debug('>>> evaluation:')
 
         self.seq2seq.eval()
 
-        rouge           = Rouge()
-        total_scores    = []
+        rouge = Rouge()
+        total_scores = []
         total_eval_time = time.time()
-        batch_counter   = 0
+        batch_counter = 0
         example_counter = 0
 
         while True:
@@ -68,11 +62,13 @@ class Evaluate(object):
 
             # prediction
 
-            output = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len,
-                                  batch.keywords)
+            output, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len,
+                                     batch.keywords)
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
+                summary = [w for w in summary if w != TK_STOP['id']]
+
                 gen_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
             reference_summaries = batch.original_summaries
@@ -100,11 +96,11 @@ class Evaluate(object):
         total_eval_time = time.time() - total_eval_time
 
         self.logger.debug('examples: %d', example_counter)
-        self.logger.debug('avg rouge-l score: %.3f', avg_score)
+        self.logger.debug('avg rouge-l score: %f', avg_score)
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
     def load_model(self):
-        model_file = conf.get('eval:load-model-file')
+        model_file = conf('eval:load-model-file')
         if model_file is None:
             return
         model_file = FileUtil.get_file_path(model_file)
@@ -114,19 +110,29 @@ class Evaluate(object):
 
             checkpoint = t.load(model_file)
 
+            epoch = checkpoint['epoch']
+            loss = checkpoint['loss']
+
+            self.logger.debug('epoch: %s', str(epoch))
+            self.logger.debug('loss: %s', str(loss))
+
             self.seq2seq.load_state_dict(checkpoint['model_state_dict'])
         else:
-            self.logger.warning('>>> cannot load pre-trained model - file not exist: %s', model_file)
+            raise Exception('>>> cannot load model - file not exist: %s', model_file)
 
     def run(self):
-        # display configuration
-        self.logger.debug('>>> configuration: \n' + conf.dump().strip())
+        try:
+            # display configuration
+            self.logger.debug('>>> configuration: \n' + conf().dump().strip())
 
-        # load pre-trained model`
-        self.load_model()
+            # load pre-trained model`
+            self.load_model()
 
-        # evaluate
-        self.evaluate()
+            # evaluate
+            self.evaluate()
+        except Exception as e:
+            self.logger.error(e, exc_info=True)
+            raise e
 
 
 if __name__ == "__main__":
@@ -135,9 +141,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    config_file = args.conf_file
-    if config_file is not None:
-        conf.merge(config_file)
+    AppContext(args.conf_file)
 
     evaluation = Evaluate()
     evaluation.run()

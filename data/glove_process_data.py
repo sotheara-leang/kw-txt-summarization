@@ -1,58 +1,43 @@
 import argparse
-import numpy as np
 import pickle
-import os
-import bcolz
+import numpy as np
 
 
-def generate_vocab(file_in, dir_out):
-    word2id = {}
-    id2word = {}
-    id2vect = {}
+def count(file_in):
+    counter = 0
+    with open(file_in, 'r', encoding='utf-8') as f:
+        for line in f:
+            counter += 1
+    return counter
 
-    vectors = bcolz.carray(np.zeros(1), rootdir=dir_out + '/embedding', mode='w')
 
-    idx = 4
+def generate_embedding(file_in, dir_out, fname):
+    word2vect = {}
 
     with open(file_in, 'r') as f:
         for line in f:
             line = line.split()
 
             word = line[0]
-            vector = np.array(line[1:]).astype(np.float)
+            embedding = np.array(line[1:]).astype(np.float)
 
-            word2id[word] = idx
-            id2word[idx] = word
-            id2vect[idx] = vector
+            word2vect[word] = embedding
 
-            vectors.append(vector)
-
-            idx += 1
-
-    if not os.path.exists(dir_out):
-        os.makedirs(dir_out + '/embedding')
-
-    vocab = {
-        'word2id': word2id,
-        'id2word': id2word
+    data = {
+        'word2vect': word2vect,
+        'vocab': list(word2vect.keys())
     }
 
-    pickle.dump(vocab, open(dir_out + '/glove-vocab.bin', 'wb'))
+    output_fname = 'embedding.bin' if fname is None else fname
 
-    vectors = bcolz.carray(vectors[1:].reshape(-1, vector.shape[0]), rootdir=dir_out + '/embedding', mode='w')
-    vectors.flush()
-
-
-def count(file_in):
-    counter = 0
-    with open(file_in, 'r') as f:
-        for line in f:
-            counter += 1
-    return counter
+    with open(dir_out + '/' + output_fname, 'wb') as f:
+        pickle.dump(data, f)
 
 
-def extract_vocab(file_in, dir_out):
-    with open(file_in, 'r') as r, open(dir_out + '/vocab.txt', 'w') as w:
+def generate_vocab(file_in, dir_out, fname):
+    output_fname = 'vocab.txt' if fname is None else fname
+
+    with open(file_in, 'r') as r, open(dir_out + '/' + output_fname, 'w') as w:
         words = []
         for line in r:
             line = line.split()
@@ -69,6 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--opt', type=str, default='gen-vocab')
     parser.add_argument('--file_in', type=str)
     parser.add_argument('--dir_out', type=str, default='extract')
+    parser.add_argument('--fname', type=str)
 
     args = parser.parse_args()
 
@@ -77,7 +63,7 @@ if __name__ == '__main__':
     if opt == 'count':
         nb = count(args.file_in)
         print(nb)
-    elif opt == 'extract-vocab':
-        extract_vocab(args.file_in, args.dir_out)
-    else:
-        generate_vocab(args.file_in, args.dir_out)
+    elif opt == 'gen_vocab':
+        generate_vocab(args.file_in, args.dir_out, args.fname)
+    elif opt == 'gen_emb':
+        generate_embedding(args.file_in, args.dir_out, args.fname)

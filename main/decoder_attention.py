@@ -9,7 +9,7 @@ class DecoderAttention(nn.Module):
     def __init__(self):
         super(DecoderAttention, self).__init__()
 
-        self.w_attn = nn.Linear(conf.get('dec-hidden-size'), conf.get('dec-hidden-size'), False)
+        self.w_attn = nn.Linear(conf('dec-hidden-size'), conf('dec-hidden-size'), False)
 
     '''
         :params

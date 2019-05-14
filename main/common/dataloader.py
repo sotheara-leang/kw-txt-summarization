@@ -4,7 +4,7 @@ from main.common.common import *
 class DataLoader(object):
 
     def __init__(self, batch_size):
-        self.logger = getLogger(self)
+        self.logger = logger(self)
 
         self.batch_size = batch_size
         self.generator = self.reader()

@@ -4,7 +4,7 @@ import torch.nn.functional as f
 from main.encoder import Encoder
 from main.reduce_encoder import ReduceEncoder
 from main.decoder import Decoder
-from main.encoder_attention import EncoderAttention
+from main.encoder_attention import *
 from main.decoder_attention import DecoderAttention
 from main.kw_encoder import KWEncoder
 from main.common.vocab import *
@@ -16,13 +16,13 @@ class Seq2Seq(nn.Module):
     def __init__(self, vocab: Vocab, embedding=None):
         super(Seq2Seq, self).__init__()
 
-        self.emb_size           = conf.get('emb-size')
-        self.enc_hidden_size    = conf.get('enc-hidden-size')
-        self.dec_hidden_size    = conf.get('dec-hidden-size')
-        self.vocab_size         = conf.get('vocab-size')
-        self.max_dec_steps      = conf.get('max-dec-steps')
-        self.share_dec_weight   = conf.get('share-dec-weight')
-        self.pointer_generator  = conf.get('pointer-generator')
+        self.emb_size           = conf('emb-size')
+        self.enc_hidden_size    = conf('enc-hidden-size')
+        self.dec_hidden_size    = conf('dec-hidden-size')
+        self.vocab_size         = conf('vocab-size')
+        self.max_dec_steps      = conf('max-dec-steps')
+        self.share_dec_weight   = conf('share-dec-weight')
+        self.pointer_generator  = conf('pointer-generator')
 
         self.vocab = vocab
 
@@ -47,7 +47,7 @@ class Seq2Seq(nn.Module):
             proj_layer = nn.Linear(combined_hidden_size, self.emb_size)
 
             output_layer = nn.Linear(self.emb_size, self.vocab_size)
-            output_layer.weight = self.embedding.weight  # sharing weight with embedding
+            output_layer.weight.data = self.embedding.weight.data  # sharing weight with embedding
 
             self.vocab_gen = nn.Sequential(
                 proj_layer,
@@ -59,15 +59,16 @@ class Seq2Seq(nn.Module):
         self.kw_encoder = KWEncoder(self.embedding)
 
     '''
-        :params
-            x                : B, L
-            x_len            : B
-            extend_vocab_x   : B, L
-            max_oov_len      : C
-            kw               : B, L
+            :params
+                x                : B, L
+                x_len            : B
+                extend_vocab_x   : B, L
+                max_oov_len      : C
+                kw               : B, L
 
-        :returns
-            y                : B, L
+            :returns
+                y                : B, L
+                att              : B, L
     '''
 
     def forward(self, x, x_len, extend_vocab_x, max_oov_len, kw):
@@ -88,20 +89,22 @@ class Seq2Seq(nn.Module):
         # initial decoder input
         dec_input = cuda(t.tensor([TK_START['id']] * batch_size))
 
-        # keyword
-        kw = self.kw_encoder(kw)
-
         # encoder padding mask
         enc_padding_mask = t.zeros(batch_size, max(x_len))
         for i in range(batch_size):
             enc_padding_mask[i, :x_len[i]] = t.ones(1, x_len[i])
 
-        enc_padding_mask = cuda(enc_padding_mask.byte())
+        enc_padding_mask = cuda(enc_padding_mask)
 
         # stop decoding mask
-        stop_dec_mask = cuda(t.zeros(len(x)))
+        stop_dec_mask = cuda(t.zeros(batch_size))
+
+        # keyword
+        kw = self.kw_encoder(kw)
 
         enc_ctx_vector = cuda(t.zeros(batch_size, 2 * self.enc_hidden_size))
+
+        enc_attention = None
 
         enc_temporal_score = None
 
@@ -111,7 +114,7 @@ class Seq2Seq(nn.Module):
 
         for i in range(self.max_dec_steps):
             # decoding
-            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_temporal_score, _ = self.decode(
+            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, _, _ = self.decode(
                 dec_input,
                 dec_hidden,
                 dec_cell,
@@ -124,9 +127,11 @@ class Seq2Seq(nn.Module):
                 max_oov_len,
                 kw)
 
+            enc_attention = enc_att.unsqueeze(1).detach() if enc_attention is None else t.cat([enc_attention, enc_att.unsqueeze(1).detach()], dim=1)
+
             ## output
 
-            _, dec_output = t.max(vocab_dist, dim=1)
+            dec_output = t.max(vocab_dist, dim=1)[1].detach()
 
             y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
 
@@ -137,12 +142,11 @@ class Seq2Seq(nn.Module):
             if len(stop_dec_mask[stop_dec_mask == 1]) == len(stop_dec_mask):
                 break
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat(
-                [pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
             dec_input = dec_output
 
-        return y
+        return y, enc_attention
 
     '''
         :params
@@ -163,8 +167,10 @@ class Seq2Seq(nn.Module):
             dec_hidden              :   B, DH
             dec_cell                :   B, DH
             enc_ctx_vector          :   B, 2EH
+            enc_attention           :   B, L
             enc_temporal_score      :   B, L
             dec_ctx_vector          :   B, DH
+            dec_attention           :   B, L
     '''
 
     def decode(self, dec_input,
@@ -189,7 +195,7 @@ class Seq2Seq(nn.Module):
 
         # intra-decoder attention
 
-        dec_ctx_vector, _ = self.dec_att(dec_hidden, pre_dec_hiddens)
+        dec_ctx_vector, dec_att = self.dec_att(dec_hidden, pre_dec_hiddens)
 
         # vocab distribution
 
@@ -212,18 +218,19 @@ class Seq2Seq(nn.Module):
         else:
             final_vocab_dist = vocab_dist
 
-        return final_vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_temporal_score, dec_ctx_vector
+        return final_vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, dec_ctx_vector, dec_att
 
     '''
         :params
             x       : article
-            kw      : keywords
+            kw      : keyword
 
         :returns
             y       : summary
+            att     : attention
     '''
 
-    def summarize(self, x, kw):
+    def evaluate(self, x):
         self.eval()
 
         words = x.split()
@@ -240,6 +247,6 @@ class Seq2Seq(nn.Module):
 
         kw = self.vocab.words2ids(kw.split())
 
-        y = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)[0]
+        y, att = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)
 
-        return ' '.join(self.vocab.ids2words(y.tolist(), oov))
+        return ' '.join(self.vocab.ids2words(y[0].tolist(), oov)), att[0]
