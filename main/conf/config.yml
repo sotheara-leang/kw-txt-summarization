@@ -5,7 +5,7 @@ enc-hidden-size: 50
 dec-hidden-size: 100
 
 max-enc-steps: 100
-max-dec-steps: 100
+max-dec-steps: 50
 
 vocab-size: 50000
 vocab-file: data/train/vocab.txt
@@ -23,7 +23,7 @@ logging:
 
 train:
   epoch: 100
-  batch-size: 10
+  batch-size: 1
   log-batch: true
   log-batch-interval: 1
   clip-gradient-max-norm: 1
@@ -46,11 +46,11 @@ train:
 
   tb:
     enable: true
-    log-dir: ${PROJ_HOME}/logs/giga/
+    log-dir: ${PROJ_HOME}/logs/cnn/
 
-  article-file: data/train/article.txt
-  summary-file: data/train/summary.txt
-  keyword-file: data/train/keyword.txt
+  article-file: data/train/training.article.txt
+  summary-file: data/train/training.summary.txt
+  keyword-file: data/train/training.keyword.txt
 
   load-model-file:
   save-model-file: data/result/model.ckpt

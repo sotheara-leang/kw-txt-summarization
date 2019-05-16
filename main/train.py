@@ -8,7 +8,7 @@ import datetime
 import argparse
 import os
 
-from main.data.dataloader import *
+from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
 from main.common.batch import *
 from main.common.util.file_util import FileUtil
@@ -61,7 +61,7 @@ class Train(object):
         self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps,
                                                   self.pointer_generator)
 
-        self.data_loader = DataLoader(FileUtil.get_file_path(conf('train:article-file')),
+        self.data_loader = CNNDataLoader(FileUtil.get_file_path(conf('train:article-file')),
                                       FileUtil.get_file_path(conf('train:summary-file')),
                                       FileUtil.get_file_path(conf('train:keyword-file')), self.batch_size)
 

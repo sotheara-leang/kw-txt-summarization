@@ -51,7 +51,7 @@ class BatchInitializer(object):
         samples = sorted(samples, key=lambda s: len(s[0].split()), reverse=True)
 
         for sample in samples:
-            article_, summaries_, keywords_ = sample
+            article_, keywords_, summaries_ = sample
 
             articles.extend([article_ for _ in range(len(summaries_))])
             summaries.extend(summaries_)
@@ -118,7 +118,7 @@ class BatchInitializer(object):
 
         enc_keywords = []
         for i, kw_words in enumerate(kws_words):
-            enc_kw = self.vocab.words2ids(kw_words, oovs[i])
+            enc_kw = self.vocab.words2ids(kw_words)
             enc_kw += [TK_PADDING['id']] * (max_kw_len - len(enc_kw))
 
             enc_keywords.append(enc_kw)
