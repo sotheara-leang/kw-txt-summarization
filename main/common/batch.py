@@ -133,7 +133,7 @@ class BatchInitializer(object):
         enc_summaries = cuda(t.tensor(enc_summaries))
         summaries_len = cuda(t.tensor(summaries_len))
 
-        enc_keywords = cuda(t.tensor(enc_keywords))
+        enc_keywords = cuda(t.LongTensor(enc_keywords))
         keywords_len = cuda(t.tensor(kws_len))
 
         return Batch(enc_articles,

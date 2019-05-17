@@ -25,7 +25,7 @@ class CNNDataLoader(DataLoader):
                     summaries = next(sum_reader).strip()
                     kws = next(kw_reader).strip()
 
-                    if article == '' or summaries == '' or kws == '':
+                    if article == '' or summaries == '':
                         continue
 
                     summaries = summaries.split(CNNDataLoader.SEP_SUMMARY_QUERY)

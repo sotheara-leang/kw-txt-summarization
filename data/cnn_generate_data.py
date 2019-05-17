@@ -38,10 +38,11 @@ class Summaries:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--max', type=int, default=10)
-    parser.add_argument('--stories_dir', type=str, default='/home/vivien/Downloads/cnn/stories')
-    parser.add_argument('--questions_dir', type=str, default='/home/vivien/Downloads/cnn/questions')
-    parser.add_argument('--output_dir', type=str, default='/home/vivien/Downloads/cnn/results')
+    parser.add_argument('--max', type=int, default=-1)
+    parser.add_argument('--stories_dirs', nargs="*")
+    parser.add_argument('--questions_dirs', nargs="*")
+    parser.add_argument('--output_dir', type=str)
+    parser.add_argument('--extract', type=int, default=0)     # 0: all data, 1: only valid data
 
     options = parser.parse_args()
 
@@ -60,47 +61,51 @@ def extract_data(options):
     datasets = {}
 
     # Look through all question files
-    for item in os.listdir(options.questions_dir):
+    for idx, questions_dir in enumerate(options.questions_dirs):
 
-        if os.path.isfile(os.path.join(options.questions_dir, item)):
-            continue
+        print('\n>>> Process %s' % questions_dir)
 
-        print('\n>>> Extract questions from %s' % item)
+        for item in os.listdir(questions_dir):
 
-        datasets[item] = {}
-
-        root = os.path.join(options.questions_dir, item)
-
-        question_counter = 0
-
-        for question_file_name in tqdm.tqdm(os.listdir(root)):
-
-            if not os.path.isfile(os.path.join(root, question_file_name)):
+            if os.path.isfile(os.path.join(questions_dir, item)):
                 continue
 
-            if options.max > 0 and question_counter >= options.max:
-                break
+            print('\n>>> Extract questions from %s' % item)
 
-            with io.open(os.path.join(root, question_file_name), 'r', encoding='utf-8') as question_file:
-                question_text = question_file.read()
+            datasets[item] = {}
 
-            url, query, entities = extract_from_question(question_text)
+            root = os.path.join(questions_dir, item)
 
-            article_data = datasets.get(url)
+            question_counter = 0
 
-            if article_data is None:
-                # First time article is processed
-                article_data = ArticleData(entities=entities)
-                datasets[item][url] = article_data
+            for question_file_name in tqdm.tqdm(os.listdir(root)):
 
-            # Check if summaries for the document-query pair has already been found
-            summaries = article_data.query_to_summaries.get(join(query))
-            if summaries is not None:
-                continue
+                if not os.path.isfile(os.path.join(root, question_file_name)):
+                    continue
 
-            extract_from_story(query, article_data, options.stories_dir, url)
+                if options.max > 0 and question_counter >= options.max:
+                    break
 
-            question_counter += 1
+                with io.open(os.path.join(root, question_file_name), 'r', encoding='utf-8') as question_file:
+                    question_text = question_file.read()
+
+                url, query, entities = extract_from_question(question_text)
+
+                article_data = datasets[item].get(url)
+
+                if article_data is None:
+                    # First time article is processed
+                    article_data = ArticleData(entities=entities)
+                    datasets[item][url] = article_data
+
+                # Check if summaries for the document-query pair has already been found
+                summaries = article_data.query_to_summaries.get(join(query))
+                if summaries is not None:
+                    continue
+
+                extract_from_story(query, article_data, options.stories_dirs[idx], url, options)
+
+                question_counter += 1
 
     return datasets
 
@@ -133,7 +138,7 @@ def generate_synthetic_summary(document, highlight):
     return [word for word in highlight if word in document]
 
 
-def extract_from_story(query, article_data, stories_path, url):
+def extract_from_story(query, article_data, stories_path, url, options):
     # Find original story file which is named using the URL hash
     url_hash = hash_hex(url)
     with io.open(os.path.join(stories_path, '{}.story'.format(url_hash)), 'r', encoding='utf-8') as file:
@@ -161,13 +166,16 @@ def extract_from_story(query, article_data, stories_path, url):
     if len(tokenized_query_highlights) == 0:
         # For now, ignore if sequence of tokens not found in any highlight. It happens for example when query is
         # "American" and highlight contains "Asian-American".
-        return
+        if options.extract == 1:
+            return
+        else:
+            query = []
 
     first_query_sentence = get_first_query_sentence(query, article_text)
 
-    reference_summaries = [join(tokenized_highlight) for tokenized_highlight in tokenized_query_highlights]
+    synthetic_summary = generate_synthetic_summary(first_query_sentence, tokenized_query_highlights[0] if len(tokenized_query_highlights) > 0 else tokenized_query_highlights)
 
-    synthetic_summary = generate_synthetic_summary(first_query_sentence, tokenized_query_highlights[0])
+    reference_summaries = [join(tokenized_highlight) for tokenized_highlight in tokenized_query_highlights]
 
     summaries = Summaries(join(first_query_sentence), reference_summaries, join(synthetic_summary))
 
