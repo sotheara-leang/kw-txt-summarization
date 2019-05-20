@@ -1,10 +1,11 @@
 import os
 import re
+
 import yaml
 from yaml import Loader, Dumper
 
-from main.common.util.file_util import FileUtil
 from main.common.util.dict_util import DictUtil
+from main.common.util.file_util import FileUtil
 
 
 class Configuration:

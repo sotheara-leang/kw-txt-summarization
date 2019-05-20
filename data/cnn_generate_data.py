@@ -8,9 +8,10 @@ import io
 import os
 import re
 import sys
-import tqdm
 
 import nltk
+import tqdm
+
 nltk.download('punkt')
 
 SEP_QUERY = ','

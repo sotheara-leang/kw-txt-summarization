@@ -1,10 +1,12 @@
 import logging.config
-import re
-import yaml
 import os
+import re
+
+import yaml
 
 from main.common.common import *
 from main.common.util.file_util import FileUtil
+
 
 class Logger(object):
 

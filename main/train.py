@@ -1,19 +1,20 @@
-from rouge import Rouge
+import argparse
+import datetime
+import os
+import time
+
+import math
 import torch.nn as nn
+from rouge import Rouge
+from tensorboardX import SummaryWriter
 from torch import autograd
 from torch.distributions import Categorical
-from tensorboardX import SummaryWriter
-import time
-import datetime
-import argparse
-import os
-import math
 
+from main.common.batch import *
+from main.common.simple_vocab import SimpleVocab
+from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
-from main.common.batch import *
-from main.common.util.file_util import FileUtil
-from main.common.simple_vocab import SimpleVocab
 
 
 class Train(object):

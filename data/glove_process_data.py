@@ -1,6 +1,8 @@
 import argparse
 import pickle
+
 import numpy as np
+import tqdm
 
 
 def count(file_in):
@@ -15,7 +17,7 @@ def generate_embedding(file_in, dir_out, fname):
     word2vect = {}
 
     with open(file_in, 'r') as f:
-        for line in f:
+        for line in tqdm.tqdm(f):
             line = line.split()
 
             word = line[0]
@@ -35,11 +37,11 @@ def generate_embedding(file_in, dir_out, fname):
 
 
 def generate_vocab(file_in, dir_out, fname):
-    output_fname = 'vocab.txt' if fname is None else fname
+    output_fname = 'glove-vocab.txt' if fname is None else fname
 
     with open(file_in, 'r') as r, open(dir_out + '/' + output_fname, 'w') as w:
         words = []
-        for line in r:
+        for line in tqdm.tqdm(r):
             line = line.split()
             word = line[0]
 
@@ -51,7 +53,7 @@ def generate_vocab(file_in, dir_out, fname):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--opt', type=str, default='gen-vocab')
+    parser.add_argument('--opt', type=str, default='gen_vocab')
     parser.add_argument('--file_in', type=str)
     parser.add_argument('--dir_out', type=str, default='extract')
     parser.add_argument('--fname', type=str)

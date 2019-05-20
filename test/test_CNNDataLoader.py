@@ -1,10 +1,9 @@
 from unittest import TestCase
 
-from main.common.util.file_util import FileUtil
-from main.data.cnn_dataloader import CNNDataLoader
 from main.common.batch import *
 from main.common.simple_vocab import *
-
+from main.common.util.file_util import FileUtil
+from main.data.cnn_dataloader import CNNDataLoader
 from test.common import *
 
 

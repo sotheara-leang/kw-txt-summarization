@@ -1,14 +1,10 @@
-import torch.nn as nn
-import torch.nn.functional as f
-
-from main.encoder import Encoder
-from main.reduce_encoder import ReduceEncoder
-from main.decoder import Decoder
-from main.encoder_attention import *
-from main.decoder_attention import DecoderAttention
-from main.kw_encoder import KWEncoder
 from main.common.vocab import *
-from main.common.common import *
+from main.decoder import Decoder
+from main.decoder_attention import DecoderAttention
+from main.encoder import Encoder
+from main.encoder_attention import *
+from main.kw_encoder import KWEncoder
+from main.reduce_encoder import ReduceEncoder
 
 
 class Seq2Seq(nn.Module):

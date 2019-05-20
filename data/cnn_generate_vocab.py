@@ -1,9 +1,20 @@
 import argparse
-import os
 import collections
+import os
+import nltk
 import tqdm
 
+escape = {'#S#': '', '#Q#': ''}
 
+
+''' 
+    opt:
+        vocab
+            file_in: article, summary file
+            
+        entity-vocab
+            file_in: keyword file
+'''
 def generate_vocab(files_in, dir_out, fname, max_vocab, option):
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
@@ -17,15 +28,18 @@ def generate_vocab(files_in, dir_out, fname, max_vocab, option):
             # build vocab
             for line in tqdm.tqdm(reader):
 
+                for abbr, sign in escape.items():
+                    line = line.replace(abbr, sign)
+
                 if line == '':
                     break
 
-                if option == 'vocab':
-                    tokens = line.split()
-                else:
-                    tokens = line.split(', ')
+                if option == 'entity':
+                    line = line.replace(',', ' ')
 
-                tokens = [token.strip() for token in tokens if token != '']
+                tokens = line.split()
+
+                tokens = [token.strip() for token in tokens if token.strip() != '']
 
                 vocab_counter.update(tokens)
 
@@ -38,7 +52,7 @@ def generate_vocab(files_in, dir_out, fname, max_vocab, option):
 
     if option == 'vocab':
         output_fname = 'vocab.txt' if fname is None else fname
-    else:
+    elif option == 'entity':
         output_fname = 'entity-vocab.txt' if fname is None else fname
 
     with open(dir_out + '/' + output_fname, 'w', encoding='utf-8') as writer:
@@ -57,7 +71,7 @@ def generate_vocab(files_in, dir_out, fname, max_vocab, option):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--opt', type=str, default="vocab")
+    parser.add_argument('--opt', type=str, default="vocab")   # vocab|entity
     parser.add_argument('--file', nargs="*")
     parser.add_argument('--fname', nargs="*")
     parser.add_argument('--max_vocab', type=int, default="-1")

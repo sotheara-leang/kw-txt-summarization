@@ -1,6 +1,7 @@
-import torch.nn as nn
-import numpy as np
 import pickle
+
+import numpy as np
+import torch.nn as nn
 
 from main.common.vocab import *
 
@@ -26,8 +27,7 @@ class GloveEmbedding(nn.Embedding):
             if word in word2vect:
                 embedding[id_] = word2vect[word]
 
-        super(GloveEmbedding, self).__init__(num_embeddings=vocab_size, embedding_dim=emb_size,
-                                             padding_idx=TK_PADDING['id'], _weight=t.FloatTensor(embedding))
+        super(GloveEmbedding, self).__init__(num_embeddings=vocab_size, embedding_dim=emb_size, padding_idx=TK_PADDING['id'], _weight=t.FloatTensor(embedding))
 
     def load_emb(self, emb_file):
         with open(emb_file, 'rb') as f:

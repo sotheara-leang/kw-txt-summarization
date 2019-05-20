@@ -1,5 +1,4 @@
 from main.common.vocab import *
-from main.common.common import *
 
 
 class Batch(object):

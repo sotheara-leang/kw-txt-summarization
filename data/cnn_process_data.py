@@ -1,14 +1,31 @@
 import argparse
-import tqdm
 import os
 
+import tqdm
 
-def count_example(option):
+'''
+    file_in: keyword file
+'''
+def count_example(file_in):
     counter_ = 0
-    with open(option.file[0], 'r', encoding='utf-8') as reader:
+    with open(file_in, 'r', encoding='utf-8') as reader:
         for line in tqdm.tqdm(reader):
             entities = line.split(',')
             counter_ += len(entities)
+
+    return counter_
+
+
+'''
+    file_in: keyword file
+'''
+def extract_summarize_samples(file_in):
+    counter_ = 0
+    with open(file_in, 'r', encoding='utf-8') as reader:
+        for line in tqdm.tqdm(reader):
+            entities = line.split(',')
+            if len(entities) == 0:
+                counter_ += 1
 
     return counter_
 
@@ -73,7 +90,7 @@ if __name__ == '__main__':
     option = parser.parse_args()
 
     if option.opt == 'count':
-        counter = count_example(option)
+        counter = count_example(option.file[0])
         print(counter)
     elif option.opt == 'extract':
         extract_samples(option.file, option.num, option.dir_out, option.fname)
