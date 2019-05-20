@@ -20,13 +20,15 @@ SEP_ENTITY = ','
 
 
 class ArticleData:
-    def __init__(self, article_text=None, query_to_summaries=None, entities=None):
+    def __init__(self, article_text=None, query_to_summaries=None, entities=None, url=None, file_name=None):
         self.article_text = article_text
         if query_to_summaries is None:
             self.query_to_summaries = {}
         else:
             self.query_to_summaries = query_to_summaries
         self.entities = entities
+        self.url = url
+        self.file_name = file_name
 
 
 class Summaries:
@@ -45,7 +47,6 @@ def main():
     parser.add_argument('--extract', type=int, default=0)     # 0: all data, 1: only valid data
 
     options = parser.parse_args()
-
     print(">>> Extracting summarization data...")
     sys.stdout.flush()
     datasets = extract_data(options)
@@ -95,7 +96,7 @@ def extract_data(options):
 
                 if article_data is None:
                     # First time article is processed
-                    article_data = ArticleData(entities=entities)
+                    article_data = ArticleData(entities=entities, url=url)
                     datasets[item][url] = article_data
 
                 # Check if summaries for the document-query pair has already been found
@@ -149,14 +150,14 @@ def extract_from_story(query, article_data, stories_path, url, options):
     article_text = raw_article_text[:highlight_start_index].strip()
     highlight_text = raw_article_text[highlight_start_index:].strip()
 
-    if len(article_text) == 0:
+    if len(article_text) == 0 or len(highlight_text) == 0:
         # There are stories with only highlights, skip these
         return
 
     # Extract all highlights
     highlights = re.findall('@highlight\n\n(.*)', highlight_text)
 
-    tokenized_highlights = map(tokenize, highlights)
+    tokenized_highlights = [tokenize(highlight) for highlight in highlights]
     tokenized_query_highlights = []
 
     for highlight in tokenized_highlights:
@@ -169,11 +170,12 @@ def extract_from_story(query, article_data, stories_path, url, options):
         if options.extract == 1:
             return
         else:
-            query = []
+            query = ['']
+            tokenized_query_highlights = tokenized_highlights
 
     first_query_sentence = get_first_query_sentence(query, article_text)
 
-    synthetic_summary = generate_synthetic_summary(first_query_sentence, tokenized_query_highlights[0] if len(tokenized_query_highlights) > 0 else tokenized_query_highlights)
+    synthetic_summary = generate_synthetic_summary(first_query_sentence, tokenized_query_highlights[0])
 
     reference_summaries = [join(tokenized_highlight) for tokenized_highlight in tokenized_query_highlights]
 
@@ -183,6 +185,7 @@ def extract_from_story(query, article_data, stories_path, url, options):
         article_data.article_text = join(tokenize(article_text))
 
     article_data.query_to_summaries[join(query)] = summaries
+    article_data.file_name = '{}.story'.format(url_hash)
 
 
 def contains_sublist(list_, sublist):
@@ -281,11 +284,13 @@ def write_data(datasets, options):
         summary_filename = dataset_name + '.summary.txt'
         keyword_filename = dataset_name + '.keyword.txt'
         entity_filename  = dataset_name + '.entity.txt'
+        mapping_filename = dataset_name + '.mapping.txt'
 
         with io.open(os.path.join(output_set_dir, article_filename), 'w', encoding='utf-8') as article_file, \
                 io.open(os.path.join(output_set_dir, summary_filename), 'w', encoding='utf-8') as summary_file, \
                 io.open(os.path.join(output_set_dir, keyword_filename), 'w', encoding='utf-8') as keyword_file, \
-                io.open(os.path.join(output_set_dir, entity_filename), 'w', encoding='utf-8') as entity_file:
+                io.open(os.path.join(output_set_dir, entity_filename), 'w', encoding='utf-8') as entity_file, \
+                io.open(os.path.join(output_set_dir, mapping_filename), 'w', encoding='utf-8') as mapping_file:
 
             for url, article_data in tqdm.tqdm(sorted_articles):
                 article_text = article_data.article_text
@@ -295,6 +300,9 @@ def write_data(datasets, options):
                 # Ignore if no queries were found for article
                 if len(query_to_summaries) == 0:
                     continue
+
+                # mapping
+                mapping_file.write('{},{}\n'.format(article_data.file_name, article_data.url))
 
                 # article
                 article_file.write(article_text + '\n')

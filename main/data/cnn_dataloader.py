@@ -29,7 +29,7 @@ class CNNDataLoader(DataLoader):
                         continue
 
                     summaries = summaries.split(CNNDataLoader.SEP_SUMMARY_QUERY)
-                    summaries = [summary.replace(CNNDataLoader.SEP_SUMMARY, ' . ').strip() for summary in summaries]
+                    summaries = [summary.replace(CNNDataLoader.SEP_SUMMARY, '').strip() for summary in summaries]
 
                     kws = kws.strip().split(CNNDataLoader.SEP_KEYWORD)
                     kws = [kw.strip() for kw in kws]

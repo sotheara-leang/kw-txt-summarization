@@ -4,7 +4,7 @@ import collections
 import tqdm
 
 
-def generate_vocab(files_in, dir_out, fname, max_vocab):
+def generate_vocab(files_in, dir_out, fname, max_vocab, option):
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
 
@@ -20,7 +20,12 @@ def generate_vocab(files_in, dir_out, fname, max_vocab):
                 if line == '':
                     break
 
-                tokens = line.split()
+                if option == 'vocab':
+                    tokens = line.split()
+                else:
+                    tokens = line.split(', ')
+
+                tokens = [token.strip() for token in tokens if token != '']
 
                 vocab_counter.update(tokens)
 
@@ -31,7 +36,10 @@ def generate_vocab(files_in, dir_out, fname, max_vocab):
         if reach_max_vocab is True:
             break
 
-    output_fname = 'vocab.txt' if fname is None else fname
+    if option == 'vocab':
+        output_fname = 'vocab.txt' if fname is None else fname
+    else:
+        output_fname = 'entity-vocab.txt' if fname is None else fname
 
     with open(dir_out + '/' + output_fname, 'w', encoding='utf-8') as writer:
         vocab_counter = sorted(vocab_counter.items(), key=lambda e: e[1], reverse=True)
@@ -46,10 +54,10 @@ def generate_vocab(files_in, dir_out, fname, max_vocab):
             writer.write(token + ' ' + str(count) + '\n')
 
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--opt', type=str, default="vocab")
     parser.add_argument('--file', nargs="*")
     parser.add_argument('--fname', nargs="*")
     parser.add_argument('--max_vocab', type=int, default="-1")
@@ -57,5 +65,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    generate_vocab(args.file, args.dir_out, args.fname[0] if args.fname is not None else None, args.max_vocab)
+    generate_vocab(args.file, args.dir_out, args.fname[0] if args.fname is not None else None, args.max_vocab, args.opt)
 
