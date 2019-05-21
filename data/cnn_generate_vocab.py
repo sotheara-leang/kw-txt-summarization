@@ -1,7 +1,6 @@
 import argparse
 import collections
 import os
-import nltk
 import tqdm
 
 escape = {'#S#': '', '#Q#': ''}

@@ -19,7 +19,7 @@ def count_example(file_in):
 '''
     file_in: keyword file
 '''
-def extract_summarize_samples(file_in):
+def count_samples_without_keyword(file_in):
     counter_ = 0
     with open(file_in, 'r', encoding='utf-8') as reader:
         for line in tqdm.tqdm(reader):

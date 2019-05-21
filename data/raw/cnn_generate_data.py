@@ -5,10 +5,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import argparse
 import hashlib
 import os
+import re
 
 import tqdm
-import multiprocessing
-import concurrent.futures
 
 import spacy
 nlp = spacy.load("en")
@@ -39,7 +38,6 @@ class Question:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--op', type=str, default='preprocess', help='preprocess|generate')
     parser.add_argument('--input_dir', nargs="*")
     parser.add_argument('--output_dir', type=str)
     parser.add_argument('--max', type=int, default=-1, help='max questions to be processed')
@@ -49,52 +47,13 @@ def main():
 
     options.input_dir = ['/home/vivien/Downloads/raw/cnn']
     options.output_dir = '/home/vivien/Downloads/generate'
+    options.max = 50
 
-    if options.op == 'preprocess':
-        print('>>> pre-process datafiles')
-        preprocess_datafiles(options)
+    print('>>> extract datasets')
+    datsets = extract_datasets(options)
 
-    elif options.op == 'generate':
-
-        print('>>> process datafiles')
-        datsets = extract_datasets(options)
-
-        print('\n>>> write datafiles')
-        write_datasets(datsets, options)
-
-def preprocess_datafiles(options):
-    with concurrent.futures.ProcessPoolExecutor(max_workers=int(multiprocessing.cpu_count() / 2)) as executor:
-        for input_dir in options.input_dir:
-
-            # story
-
-            story_dir = path(input_dir, 'stories')
-
-            print('preprocess story files in %s' % story_dir)
-
-            story_files = os.listdir(story_dir)
-            story_files = [path(story_dir, story_file) for idx, story_file in enumerate(story_files)]
-
-            executor.map(tokenize_file, story_files)
-
-            # question
-
-            question_dir = path(input_dir, 'questions')
-
-            question_sub_dirs = os.listdir(question_dir)
-            for question_sub_dir in question_sub_dirs:
-
-                question_sub_dir = path(question_dir, question_sub_dir)
-
-                print('preprocess question files in %s' % question_sub_dir)
-
-                if os.path.isfile(question_sub_dir):
-                    continue
-
-                question_files = os.listdir(question_sub_dir)
-                question_files = [path(question_sub_dir, question_file) for idx, question_file in enumerate(question_files)]
-
-                executor.map(tokenize_file, question_files)
+    print('\n>>> write datasets')
+    write_datasets(datsets, options)
 
 def extract_datasets(options):
     datasets = {}
@@ -276,22 +235,15 @@ def extract_article(question, story_dir, options):
 
     return article
 
-def tokenize_file(text_file):
+def read_text_file(text_file):
     with open(text_file, "r") as f:
         text = f.read().lower()
 
     text = ' '.join(tokenize(text))
-
     lines = text.splitlines()
+
     lines = [line.strip() for line in lines]
 
-    with open(text_file, "w") as w:
-        for line in lines:
-            w.write(line + '\n')
-
-def read_text_file(text_file):
-    with open(text_file, "r") as f:
-        lines = f.read().splitlines()
     return lines
 
 def fix_missing_period(line):
