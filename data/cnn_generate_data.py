@@ -5,10 +5,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import argparse
 import hashlib
 import os
+import multiprocessing
 
 import tqdm
-import multiprocessing
-import concurrent.futures
 
 import spacy
 nlp = spacy.load("en")
@@ -39,16 +38,13 @@ class Question:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--op', type=str, default='preprocess', help='preprocess|generate')
+    parser.add_argument('--op', type=str, default='generate', help='preprocess|generate')
     parser.add_argument('--input_dir', nargs="*")
     parser.add_argument('--output_dir', type=str)
     parser.add_argument('--max', type=int, default=-1, help='max questions to be processed')
     parser.add_argument('--extract', type=int, default=0, help='0: all data, 1: only valid data')
 
     options = parser.parse_args()
-
-    options.input_dir = ['/home/vivien/Downloads/raw/cnn']
-    options.output_dir = '/home/vivien/Downloads/generate'
 
     if options.op == 'preprocess':
         print('>>> pre-process datafiles')
@@ -63,38 +59,40 @@ def main():
         write_datasets(datsets, options)
 
 def preprocess_datafiles(options):
-    with concurrent.futures.ProcessPoolExecutor(max_workers=int(multiprocessing.cpu_count() / 2)) as executor:
-        for input_dir in options.input_dir:
+    pool = multiprocessing.Pool(int(os.cpu_count() / 2))
 
-            # story
+    for input_dir in options.input_dir:
 
-            story_dir = path(input_dir, 'stories')
+        # story
 
-            print('preprocess story files in %s' % story_dir)
+        story_dir = path(input_dir, 'stories')
 
-            story_files = os.listdir(story_dir)
-            story_files = [path(story_dir, story_file) for idx, story_file in enumerate(story_files)]
+        print('preprocess story files in %s' % story_dir)
 
-            executor.map(tokenize_file, story_files)
+        story_files = os.listdir(story_dir)
+        story_files = [path(story_dir, story_file) for idx, story_file in enumerate(story_files)]
 
-            # question
+        list(tqdm.tqdm(pool.imap(tokenize_file, story_files), total=len(story_files)))
 
-            question_dir = path(input_dir, 'questions')
+        # question
 
-            question_sub_dirs = os.listdir(question_dir)
-            for question_sub_dir in question_sub_dirs:
+        question_dir = path(input_dir, 'questions')
 
-                question_sub_dir = path(question_dir, question_sub_dir)
+        question_sub_dirs = os.listdir(question_dir)
+        for question_sub_dir in question_sub_dirs:
 
-                print('preprocess question files in %s' % question_sub_dir)
+            question_sub_dir = path(question_dir, question_sub_dir)
 
-                if os.path.isfile(question_sub_dir):
-                    continue
+            print('preprocess question files in %s' % question_sub_dir)
 
-                question_files = os.listdir(question_sub_dir)
-                question_files = [path(question_sub_dir, question_file) for idx, question_file in enumerate(question_files)]
+            if os.path.isfile(question_sub_dir):
+                continue
 
-                executor.map(tokenize_file, question_files)
+            question_files = os.listdir(question_sub_dir)
+            question_files = [path(question_sub_dir, question_file) for idx, question_file in enumerate(question_files)]
+
+            list(tqdm.tqdm(pool.imap(tokenize_file, question_files), total=len(question_files)))
+
 
 def extract_datasets(options):
     datasets = {}
