@@ -242,8 +242,7 @@ class Train(object):
 
             dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN['id']
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat(
-                [pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
         loss = t.sum(loss, dim=1) / batch.summaries_len.float()
 
@@ -313,8 +312,7 @@ class Train(object):
 
             dec_input = (1 - is_oov) * dec_input + is_oov * TK_UNKNOWN['id']
 
-            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat(
-                [pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
+            pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
         # masking padding - not considering sampled words with padding mask = 0
 

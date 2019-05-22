@@ -15,21 +15,6 @@ def count_example(file_in):
 
     return counter_
 
-
-'''
-    file_in: keyword file
-'''
-def count_samples_without_keyword(file_in):
-    counter_ = 0
-    with open(file_in, 'r', encoding='utf-8') as reader:
-        for line in tqdm.tqdm(reader):
-            entities = line.split(',')
-            if len(entities) == 0:
-                counter_ += 1
-
-    return counter_
-
-
 def extract_samples(file_in, number, dir_out, fname):
     counter_ = 1
 

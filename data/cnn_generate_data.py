@@ -1,4 +1,4 @@
-# https://github.com/helmertz/querysum-data/blob/master/convert_rcdata.py
+# https://github.com/helmertz/querysum-data/blob/master/convert_rcdata.py, https://github.com/abisee/cnn-dailymail/blob/master/make_datafiles.py
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
@@ -10,6 +10,7 @@ import multiprocessing
 import tqdm
 
 import spacy
+
 nlp = spacy.load("en")
 
 SEP_QUERY           = ','
@@ -25,8 +26,9 @@ END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_dou
 
 class Article:
 
-    def __init__(self, article_text=None, query_to_summaries=None, entities=None):
+    def __init__(self, article_text=None, highlights=None, query_to_summaries=None, entities=None):
         self.article_text = article_text
+        self.highlights = highlights
         self.query_to_summaries = {} if query_to_summaries is None else query_to_summaries
         self.entities = entities
 
@@ -41,8 +43,8 @@ def main():
     parser.add_argument('--op', type=str, default='generate', help='preprocess|generate')
     parser.add_argument('--input_dir', nargs="*")
     parser.add_argument('--output_dir', type=str)
-    parser.add_argument('--max', type=int, default=-1, help='max questions to be processed')
-    parser.add_argument('--extract', type=int, default=0, help='0: all data, 1: only valid data')
+    parser.add_argument('--max_ex', type=int, default=-1, help='max examples to be processed')
+    parser.add_argument('--gen_all', type=int, default=1, help='1: all data, 0: only question/answer pair')
 
     options = parser.parse_args()
 
@@ -51,7 +53,6 @@ def main():
         preprocess_datafiles(options)
 
     elif options.op == 'generate':
-
         print('>>> process datafiles')
         datsets = extract_datasets(options)
 
@@ -63,6 +64,8 @@ def preprocess_datafiles(options):
 
     for input_dir in options.input_dir:
 
+        print('preprocess directory: %s' % input_dir)
+
         # story
 
         story_dir = path(input_dir, 'stories')
@@ -70,29 +73,49 @@ def preprocess_datafiles(options):
         print('preprocess story files in %s' % story_dir)
 
         story_files = os.listdir(story_dir)
-        story_files = [path(story_dir, story_file) for idx, story_file in enumerate(story_files)]
+        story_files = [path(story_dir, story_file) for story_file in story_files if story_file.endswith('.story')]
 
         list(tqdm.tqdm(pool.imap(tokenize_file, story_files), total=len(story_files)))
 
         # question
 
-        question_dir = path(input_dir, 'questions')
+        # question_dir = path(input_dir, 'questions')
+        #
+        # question_sub_dirs = os.listdir(question_dir)
+        # for question_sub_dir in question_sub_dirs:
+        #
+        #     question_sub_dir = path(question_dir, question_sub_dir)
+        #
+        #     print('preprocess question files in %s' % question_sub_dir)
+        #
+        #     if os.path.isfile(question_sub_dir):
+        #         continue
+        #
+        #     question_files = os.listdir(question_sub_dir)
+        #     question_files = [path(question_sub_dir, question_file) for question_file in question_files if
+        #                       question_file.endswith('.question')]
+        #
+        #     list(tqdm.tqdm(pool.imap(tokenize_file, question_files), total=len(question_files)))
 
-        question_sub_dirs = os.listdir(question_dir)
-        for question_sub_dir in question_sub_dirs:
+def tokenize_file(text_file):
+    with open(text_file, 'r', encoding='utf-8') as f:
+        text = f.read()
 
-            question_sub_dir = path(question_dir, question_sub_dir)
+    text = ' '.join(tokenize(text))
 
-            print('preprocess question files in %s' % question_sub_dir)
+    lines = text.splitlines()
+    lines = [line.strip() for line in lines]
 
-            if os.path.isfile(question_sub_dir):
-                continue
+    with open(text_file, 'w', encoding='utf-8') as w:
+        for line in lines:
+            w.write(line + '\n')
 
-            question_files = os.listdir(question_sub_dir)
-            question_files = [path(question_sub_dir, question_file) for idx, question_file in enumerate(question_files)]
-
-            list(tqdm.tqdm(pool.imap(tokenize_file, question_files), total=len(question_files)))
-
+def tokenize(text):
+    doc = nlp(u'' + text.lower())
+    tokens = []
+    for token in doc:
+        tokens.append(token.text)
+    return tokens
 
 def extract_datasets(options):
     datasets = {}
@@ -111,8 +134,9 @@ def extract_datasets(options):
 
             dataset = {}
             datasets[question_sub_dir] = dataset
+
             question_sub_dir = path(question_dir, question_sub_dir)
-            question_counter = 0
+            example_counter = 0
 
             for question_file in tqdm.tqdm(os.listdir(question_sub_dir)):
                 question_file = path(question_sub_dir, question_file)
@@ -120,22 +144,47 @@ def extract_datasets(options):
                 if not os.path.isfile(question_file):
                     continue
 
-                if options.max > 0 and question_counter >= options.max:
+                if options.max_ex > 0 and example_counter >= options.max_ex:
                     break
 
+                # extract question
                 question = extract_question(question_file)
-
-                if question is None or question.url in dataset:
+                if question is None:
                     continue
 
-                article = extract_article(question, story_dir, options)
-
+                # extract story
+                article = dataset.get(question.url)
                 if article is None:
-                    continue
+                    story_file = '{}.story'.format(path(story_dir, hash_hex(question.url)))
+
+                    article = extract_story(story_file)
+                    if article is None:
+                        continue
+
+                    article.entities = question.entities
+                    dataset[question.url] = article
 
                 dataset[question.url] = article
 
-                question_counter += 1
+                # check if summaries of query has already been found
+                summaries = article.query_to_summaries.get(' '.join(question.query))
+                if summaries is not None:
+                    continue
+
+                # extract query summaries
+                query_highlights = []
+                for highlight in article.highlights:
+                    if contains_sublist(highlight.split(), question.query):
+                        query_highlights.append(highlight)
+
+                if len(query_highlights) == 0:
+                    # For now, ignore if sequence of tokens not found in any highlight. It happens for example when query is
+                    # "American" and highlight contains "Asian-American".
+                    continue
+
+                article.query_to_summaries[' '.join(question.query)] = query_highlights
+
+                example_counter += 1
 
     return datasets
 
@@ -182,8 +231,11 @@ def write_datasets(datasets, options):
                 # entity
                 entity_file.write(SEP_ENTITY.join(entities) + '\n')
 
+                if options.gen_all is 1:
+                    query_to_summaries[''] = article.highlights
+
                 # query and summaries
-                query_to_summaries = sorted(query_to_summaries.items(), key=lambda query_tuple: hash_hex(query_tuple[0]))
+                query_to_summaries = sorted(query_to_summaries.items(), key=lambda query_tuple: len(query_tuple[1]))
 
                 for idx, query_to_summary in enumerate(query_to_summaries):
                     query, summaries = query_to_summary
@@ -205,6 +257,9 @@ def write_datasets(datasets, options):
                 summary_file.write('\n')
 
 def extract_question(question_file):
+    if not os.path.isfile(question_file):
+        return None
+
     lines = read_text_file(question_file)
 
     if len(lines) == 0:
@@ -222,26 +277,29 @@ def extract_question(question_file):
 
     return Question(url, query, entities)
 
-def extract_article(question, story_dir, options):
-    story_file = '{}.story'.format(path(story_dir, hash_hex(question.url)))
+def get_entity_dictionary(entity_mapping_lines):
+    entity_dictionary = {}
+    for mapping in entity_mapping_lines:
+        entity, name = mapping.split(':', 1)
+        entity_dictionary[entity] = name
+    return entity_dictionary
 
+def extract_story(story_file):
     if not os.path.isfile(story_file):
         return None
 
     lines = read_text_file(story_file)
-
     lines = [fix_missing_period(line) for line in lines]
 
-    # put periods on the ends of lines that are missing them (this is a problem in the dataset because many image captions don't end in periods; consequently they end up in the body of the article as run-on sentences)
+    # separate out article text and highlights
 
-    # separate out article and abstract sentences
-    article_lines = []
-    highlights = []
+    article_lines   = []
+    highlights      = []
 
     next_is_highlight = False
     for idx, line in enumerate(lines):
         if line == "":
-            continue  # empty line
+            continue
         elif line.startswith("@highlight"):
             next_is_highlight = True
         elif next_is_highlight:
@@ -252,69 +310,22 @@ def extract_article(question, story_dir, options):
     if len(article_lines) == 0 or len(highlights) == 0:
         return
 
-    query_highlights = []
-    for highlight in highlights:
-        if contains_sublist(highlight.split(), question.query):
-            query_highlights.append(highlight)
-
-    query_not_found = False
-    if len(query_highlights) == 0:
-        # For now, ignore if sequence of tokens not found in any highlight. It happens for example when query is
-        # "American" and highlight contains "Asian-American".
-        if options.extract == 1:
-            return
-        else:
-            query_not_found = True
-            query_highlights = highlights
-
-    article = Article(' '.join(article_lines), None, question.entities)
-
-    query = ' '.join(question.query) if query_not_found is False else ''
-    article.query_to_summaries[query] = query_highlights
-
-    return article
-
-def tokenize_file(text_file):
-    with open(text_file, "r") as f:
-        text = f.read().lower()
-
-    text = ' '.join(tokenize(text))
-
-    lines = text.splitlines()
-    lines = [line.strip() for line in lines]
-
-    with open(text_file, "w") as w:
-        for line in lines:
-            w.write(line + '\n')
+    return Article(' '.join(article_lines), highlights)
 
 def read_text_file(text_file):
-    with open(text_file, "r") as f:
-        lines = f.read().splitlines()
+    with open(text_file, 'r', encoding='utf-8') as f:
+        lines = f.read().lower().splitlines()
     return lines
 
 def fix_missing_period(line):
     """Adds a period to a line that is missing a period"""
     if "@highlight" in line:
         return line
-    if line == "" :
+    if line == "":
         return line
     if line[-1] in END_TOKENS:
         return line
     return line + " ."
-
-def get_entity_dictionary(entity_mapping_lines):
-    entity_dictionary = {}
-    for mapping in entity_mapping_lines:
-        entity, name = mapping.split(':', 1)
-        entity_dictionary[entity] = name
-    return entity_dictionary
-
-def tokenize(text):
-    doc = nlp(u'' + text.lower())
-    tokens = []
-    for token in doc:
-        tokens.append(token.text)
-    return tokens
 
 def path(path, *paths):
     return os.path.join(path, *paths)
