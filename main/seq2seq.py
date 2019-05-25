@@ -96,13 +96,13 @@ class Seq2Seq(nn.Module):
         enc_padding_mask = cuda(enc_padding_mask)
 
         # stop decoding mask
-        stop_dec_mask = cuda(t.zeros(batch_size, max_x_len))
+        stop_dec_mask = cuda(t.zeros(batch_size))
 
         # keyword
         if kw is None:
-            kw = cuda(t.zeros(batch_size, max_x_len).long())
+            kw = cuda(t.zeros(batch_size, max_x_len))
 
-        kw = self.kw_encoder(kw)
+        kw = self.kw_encoder(kw.long())
 
         # initial encoder context vector
         enc_ctx_vector = cuda(t.zeros(batch_size, 2 * self.enc_hidden_size))
@@ -237,12 +237,10 @@ class Seq2Seq(nn.Module):
         self.eval()
 
         words = x.split()
-
         x = cuda(t.tensor(self.vocab.words2ids(words) + [TK_STOP['id']]).unsqueeze(0))
         x_len = cuda(t.tensor([len(words) + 1]))
 
         extend_vocab_x, oov = self.vocab.extend_words2ids(words)
-
         extend_vocab_x = extend_vocab_x + [TK_STOP['id']]
         extend_vocab_x = cuda(t.tensor(extend_vocab_x).unsqueeze(0))
 
@@ -250,8 +248,9 @@ class Seq2Seq(nn.Module):
 
         if kw is None:
             kw = cuda(t.zeros(1, x_len).long())
-
-        kw = self.vocab.words2ids(kw.split())
+        else:
+            kw = self.vocab.words2ids(kw if isinstance(kw, (list,)) else kw.split())
+            kw = cuda(t.tensor(kw).unsqueeze(0))
 
         y, att = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)
 
