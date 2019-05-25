@@ -7,8 +7,8 @@ import hashlib
 import os
 import multiprocessing
 import tqdm
-import collections
 import spacy
+import math
 
 nlp = spacy.load("en")
 
@@ -31,9 +31,10 @@ class Story:
 
         self.highlights = highlights
         self.query_to_summaries = {} if query_to_summaries is None else query_to_summaries
-        self.entities = entities
+        self.entities = entities if entities is not None else []
         self.f_name = f_name
         self.query_mapping = {}
+
 
 class Question:
     def __init__(self, url=None, query=None, entities=None, f_name=None):
@@ -51,6 +52,7 @@ def main():
     parser.add_argument('--max_ex', type=int, default=-1, help='max examples to be processed')
     parser.add_argument('--gen_all', type=int, default=1, help='1: all data, 0: only question/answer pair')
     parser.add_argument('--zip', type=int, default=1, help='1: zip data, 0: normal')
+    parser.add_argument('--validation_test_fraction', type=float, default=0.015)
 
     options = parser.parse_args()
 
@@ -64,6 +66,7 @@ def main():
 
         print('\n>>> write datafiles')
         write_datasets(datsets, options)
+
 
 def preprocess_datafiles(options):
     pool = multiprocessing.Pool(int(os.cpu_count() / 2))
@@ -82,120 +85,137 @@ def preprocess_datafiles(options):
 
         list(tqdm.tqdm(pool.imap(tokenize_file, story_files), total=len(story_files)))
 
+
 def extract_datasets(options):
     datasets = {}
 
+    story_entities = extract_story_entities(options)
+
     for input_dir in options.input_dir:
-        print('\n>>> extract data in %s' % input_dir)
+        print('\n>>> extract strories in %s' % input_dir)
 
         story_dir_path = path(input_dir, 'stories')
+
+        dataset = {}
+        example_counter = 0
+
+        story_files = os.listdir(story_dir_path)
+        for story_file in tqdm.tqdm(story_files):
+
+            story = extract_story(path(story_dir_path, story_file))
+            if story is None:
+                continue
+
+            dataset[story_file] = story
+
+            if story_file not in story_entities:
+                if options.gen_all == 1:
+                    story.query_to_summaries[''] = story.highlights
+
+                continue
+
+            entities, question_file = story_entities.get(story_file)
+
+            story.entities = entities
+            highlights = [highlight.split() for highlight in story.highlights]
+
+            for entity in entities:
+                if options.max_ex > 0 and example_counter >= options.max_ex:
+                    break
+
+                entity_highlights = []
+                for highlight in highlights:
+                    if contains_sublist(highlight, entity.split()):
+                        entity_highlights.append(highlight)
+
+                if len(entity_highlights) == 0:
+                    continue
+
+                story.query_to_summaries[entity] = [' '.join(highlight) for highlight in entity_highlights]
+                story.query_mapping[entity] = question_file
+
+                example_counter += 1
+
+            if options.max_ex > 0 and example_counter >= options.max_ex:
+                break
+
+        print('examples: ', example_counter)
+        print('stories: ', len(dataset))
+
+        datasets.update(dataset)
+
+    total_counter = 0
+    for _, article in datasets.items():
+        total_counter += len(story.query_to_summaries)
+
+    print('\ntotal examples: ', total_counter)
+    print('total stories: ', len(datasets))
+
+    return datasets
+
+
+def extract_story_entities(options):
+    story_entities = {}
+
+    for input_dir in options.input_dir:
+        print('\n>>> extract entities in %s' % input_dir)
+
         question_dir_path = path(input_dir, 'questions')
 
         question_sub_dirs = os.listdir(question_dir_path)
         for question_sub_dir in question_sub_dirs:
             question_sub_dir_path = path(question_dir_path, question_sub_dir)
 
-            print('\nextract questions from %s' % question_sub_dir_path)
+            print('\nextract entities in %s' % question_sub_dir_path)
 
-            dataset = datasets.get(question_sub_dir)
-            if dataset is None:
-                dataset = {}
-
-            example_counter = 0
+            ds_story_entities = {}
 
             for question_file in tqdm.tqdm(os.listdir(question_sub_dir_path)):
-
-                if options.max_ex > 0 and example_counter >= options.max_ex:
-                    break
-
                 question_file = path(question_sub_dir_path, question_file)
-
-                if not os.path.isfile(question_file) or not question_file.endswith('.question'):
-                    continue
 
                 # extract question
                 question = extract_question(question_file)
                 if question is None:
                     continue
 
-                # extract story
-                story = dataset.get(question.url)
-                if story is None:
-                    story_file = '{}.story'.format(path(story_dir_path, hash_hex(question.url)))
+                story_file = '{}.story'.format(hash_hex(question.url))
 
-                    story = extract_story(story_file)
-                    if story is None:
-                        continue
-
-                    story.entities = question.entities
-
-                    if options.gen_all is 0:
-                        story.query_to_summaries[''] = story.highlights
-                        example_counter += 1
-
-                    dataset[question.url] = story
-
-                # check if summaries of query has already been found
-                summaries = story.query_to_summaries.get(' '.join(question.query))
-                if summaries is not None:
+                if story_file in ds_story_entities:
                     continue
 
-                # extract query summaries
-                query_highlights = []
-                for highlight in story.highlights:
-                    if contains_sublist(highlight.split(), question.query):
-                        query_highlights.append(highlight)
+                ds_story_entities[story_file] = (question.entities, question_file)
 
-                if len(query_highlights) == 0:
-                    # For now, ignore if sequence of tokens not found in any highlight. It happens for example when query is
-                    # "American" and highlight contains "Asian-American".
-                    continue
+            print('element: %d' % len(ds_story_entities))
 
-                story.query_to_summaries[' '.join(question.query)] = query_highlights
-                story.query_mapping[' '.join(question.query)] = question.f_name
+            story_entities.update(ds_story_entities)
 
-                example_counter += 1
+    return story_entities
 
-            print('examples: ', example_counter)
-            print('stories: ', len(dataset))
-
-            datasets[question_sub_dir] = dataset
-
-    for ds, ds_article in datasets.items():
-        total_counter = 0
-
-        for url, story in ds_article.items():
-            total_counter += len(story.query_to_summaries)
-
-        nb_article_without_query = sum([1 for item in ds_article.items() if len(item[1].query_to_summaries) == 0])
-
-        print('\ndataset: ', ds)
-        print('examples: ', total_counter)
-        print('stories: ', len(ds_article.items()))
-        print('stories without query: ', nb_article_without_query)
-
-    return datasets
 
 def write_datasets(datasets, options):
     output_dir = options.output_dir
 
-    for ds_name, ds_stories in datasets.items():
+    filtered_stories = [item for item in datasets.items()]
+    if options.gen_all == 0:
+        filtered_stories = [item for item in filtered_stories.items() if len(item[1].query_to_summaries) > 0]
 
-        print('\nwrite dataset %s' % ds_name)
+    num_validation_test_ds = math.ceil(options.validation_test_fraction * len(filtered_stories))
 
-        # ignore stories where no query was found
-        filtered_stories = ds_stories
-        if options.gen_all is 0:
-            filtered_stories = [item for item in ds_stories.items() if len(item[1].query_to_summaries) > 0]
+    validation_stories = filtered_stories[:num_validation_test_ds]
+    test_stories = filtered_stories[num_validation_test_ds:(2 * num_validation_test_ds)]
+    training_stories = filtered_stories[(2 * num_validation_test_ds):]
 
-        # sort stories by text length
-        sorted_stories = sorted(filtered_stories.items(), key=lambda article_tuple: article_tuple[1].article_size,
-                                 reverse=False)
+    print('\nvalidation dataset: %d' % len(validation_stories))
+    print('test dataset: %d' % len(test_stories))
+    print('training dataset: %d' % len(training_stories))
 
-        output_set_dir = path(output_dir, ds_name)
+    output_ds = [('validation', validation_stories),
+                 ('test', test_stories),
+                 ('training', training_stories)]
 
-        if not os.path.exists(output_set_dir):
-            os.makedirs(output_set_dir)
+    for ds_name, ds_stories in output_ds:
+
+        print('\n>>> write dataset: %s' % ds_name)
 
         article_filename = ds_name + '.article.txt'
         keyword_filename = ds_name + '.keyword.txt'
@@ -203,45 +223,56 @@ def write_datasets(datasets, options):
         entity_filename = ds_name + '.entity.txt'
         mapping_filename = ds_name + '.mapping.txt'
 
-        with open(os.path.join(output_set_dir, article_filename), 'w', encoding='utf-8') as article_file, \
-                open(os.path.join(output_set_dir, summary_filename), 'w', encoding='utf-8') as summary_file, \
-                open(os.path.join(output_set_dir, keyword_filename), 'w', encoding='utf-8') as keyword_file, \
-                open(os.path.join(output_set_dir, entity_filename), 'w', encoding='utf-8') as entity_file, \
-                open(os.path.join(output_set_dir, mapping_filename), 'w', encoding='utf-8') as mapping_file:
+        sorted_stories = sorted(ds_stories, key=lambda story_tuple: story_tuple[1].article_size, reverse=False)
 
-            for url, story in tqdm.tqdm(sorted_stories):
+        output_set_dir = path(output_dir, ds_name)
+        if not os.path.exists(output_set_dir):
+            os.makedirs(output_set_dir)
+
+        with open(path(output_set_dir, article_filename), 'w', encoding='utf-8') as article_file, \
+                open(path(output_set_dir, summary_filename), 'w', encoding='utf-8') as summary_file, \
+                open(path(output_set_dir, keyword_filename), 'w', encoding='utf-8') as keyword_file, \
+                open(path(output_set_dir, entity_filename), 'w', encoding='utf-8') as entity_file, \
+                open(path(output_set_dir, mapping_filename), 'w', encoding='utf-8') as mapping_file:
+
+            for story_file, story in tqdm.tqdm(sorted_stories):
                 article_text = story.article_text
                 query_to_summaries = story.query_to_summaries
                 entities = story.entities
 
-                # mapping
-                mapping_file.write(story.f_name)
-                for _, mapping in story.query_mapping.items():
-                    if options.zip is 1:
-                        mapping_file.write(':%s' % mapping)
-                    else:
-                        mapping_file.write('%s\n' % mapping)
-
-                if options.zip is 1:
-                    mapping_file.write('\n')
-
-                # article
                 if options.zip is 1:
                     article_file.write(article_text + '\n')
+                    entity_file.write(SEP_ENTITY.join(entities) + '\n')
 
-                # entity
-                entity_file.write(SEP_ENTITY.join(entities) + '\n')
+                    # mapping
+                    mapping_file.write(story.f_name)
+                    for _, mapping in story.query_mapping.items():
+                        if options.zip == 1:
+                            mapping_file.write(':%s' % mapping)
+                        else:
+                            mapping_file.write('%s\n' % mapping)
 
-                # query and summaries
-                query_to_summaries = sorted(query_to_summaries.items(), key=lambda query_tuple: len(query_tuple[1]))
+                    mapping_file.write('\n')
 
-                for idx, query_to_summary in enumerate(query_to_summaries):
+                for idx, query_to_summary in enumerate(query_to_summaries.items()):
                     query, summaries = query_to_summary
 
-                    if options.zip is 0:
+                    if options.zip == 0:
                         article_file.write(article_text + '\n')
                         keyword_file.write(query + '\n')
-                        summary_file.write(summary + '\n')
+                        entity_file.write(SEP_ENTITY.join(entities) + '\n')
+
+                        # summary
+                        for sum_idx, summary in enumerate(summaries):
+                            if sum_idx > 0:
+                                summary_file.write(SEP_SUMMARY)
+
+                            summary_file.write(summary)
+                        summary_file.write('\n')
+
+                        # mapping
+                        for _, mapping in story.query_mapping.items():
+                            mapping_file.write('%s:%s\n' % (story.f_name, mapping))
 
                     else:
                         if idx > 0:
@@ -261,7 +292,11 @@ def write_datasets(datasets, options):
                     keyword_file.write('\n')
                     summary_file.write('\n')
 
+
 def extract_question(question_file):
+    if not os.path.isfile(question_file) or not question_file.endswith('.question'):
+        return None
+
     lines = read_text_file(question_file)
 
     if len(lines) == 0:
@@ -279,6 +314,7 @@ def extract_question(question_file):
 
     return Question(url, query, entities, question_file)
 
+
 def get_entity_dictionary(entity_mapping_lines):
     entity_dictionary = {}
     for mapping in entity_mapping_lines:
@@ -286,8 +322,9 @@ def get_entity_dictionary(entity_mapping_lines):
         entity_dictionary[entity] = name
     return entity_dictionary
 
+
 def extract_story(story_file):
-    if not os.path.isfile(story_file):
+    if not os.path.isfile(story_file) or not story_file.endswith('.story'):
         return None
 
     lines = read_text_file(story_file)
@@ -314,6 +351,7 @@ def extract_story(story_file):
 
     return Story(' '.join(article_lines), highlights, f_name=story_file)
 
+
 def tokenize_file(text_file):
     with open(text_file, 'r', encoding='utf-8') as f:
         text = f.read()
@@ -334,6 +372,7 @@ def tokenize(text):
     for token in doc:
         tokens.append(token.text)
     return tokens
+
 
 def read_text_file(text_file):
     with open(text_file, 'r', encoding='utf-8') as f:
