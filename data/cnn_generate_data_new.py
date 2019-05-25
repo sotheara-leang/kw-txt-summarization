@@ -356,7 +356,7 @@ def tokenize_file(text_file):
     with open(text_file, 'r', encoding='utf-8') as f:
         text = f.read()
 
-    text = ' '.join(tokenize(text))
+    text = ' '.join(tokenize(text.lower()))
 
     lines = text.splitlines()
     lines = [line.strip() for line in lines]

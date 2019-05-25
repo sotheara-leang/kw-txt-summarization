@@ -9,6 +9,10 @@ from main.common.vocab import *
 class GloveEmbedding(nn.Embedding):
 
     def __init__(self, emb_file, vocab):
+        self.logger = logger(self)
+
+        self.logger.debug('initialize embedding from: %s', emb_file)
+
         data = self.load_emb(emb_file)
 
         word2vect = data['word2vect']

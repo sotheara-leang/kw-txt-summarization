@@ -52,8 +52,6 @@ def extract_samples(file_in, number, dir_out, fname):
     key_output_fname = key_fname if fname is None else fname[1]
     sum_output_fname = sum_fname if fname is None else fname[2]
 
-    samples = sorted(samples, key=lambda sample: len(sample[0]), reverse=False)
-
     with open(dir_out + '/' + art_output_fname, 'w', encoding='utf-8') as art_writer, \
             open(dir_out + '/' + key_output_fname, 'w', encoding='utf-8') as key_writer, \
             open(dir_out + '/' + sum_output_fname, 'w', encoding='utf-8') as sum_writer:

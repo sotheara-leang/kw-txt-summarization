@@ -3,7 +3,7 @@ import collections
 import os
 import tqdm
 
-escape = {'#S#': '', '#Q#': ''}
+escape = {'#S#': ' ', '#Q#': ' '}
 
 
 ''' 

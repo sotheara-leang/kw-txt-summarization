@@ -1,3 +1,5 @@
+import torch.nn.functional as f
+
 from main.common.vocab import *
 from main.decoder import Decoder
 from main.decoder_attention import DecoderAttention

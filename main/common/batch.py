@@ -52,7 +52,7 @@ class BatchInitializer(object):
         for sample in samples:
             article_, keywords_, summaries_ = sample
 
-            articles.extend([article_ for _ in range(len(summaries_))])
+            articles.extend([article_ for _ in range(len(keywords_))])
             summaries.extend(summaries_)
             keywords.extend(keywords_)
 

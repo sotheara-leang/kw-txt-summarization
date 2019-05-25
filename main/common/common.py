@@ -1,10 +1,12 @@
 import logging
 
+import os
 import torch as t
 from singleton_decorator import singleton
 
 from main.common.configuration import Configuration
 from main.common.logger import Logger
+from main.common.util.file_util import FileUtil
 
 ctx = globals()
 
@@ -18,6 +20,11 @@ class AppContext(object):
         self.conf = Configuration(conf_file)
 
         if self.conf.get('logging:enable') is True:
+            log_dir = FileUtil.get_file_path(self.conf.get('logging:log-dir', 'logs'))
+
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+
             log_dir = self.conf.get('logging:conf-file', 'main/conf/logging.yml')
             Logger(log_dir)
         else:
