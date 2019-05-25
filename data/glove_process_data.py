@@ -16,7 +16,7 @@ def count(file_in):
 def generate_embedding(file_in, dir_out, fname):
     word2vect = {}
 
-    with open(file_in, 'r') as f:
+    with open(file_in, 'r', encoding='utf-8') as f:
         for line in tqdm.tqdm(f):
             line = line.split()
 

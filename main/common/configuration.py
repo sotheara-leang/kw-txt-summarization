@@ -71,4 +71,4 @@ class Configuration:
         with open(FileUtil.get_file_path(conf_file), 'r') as file:
             cfg = yaml.load(file, Loader=Loader)
 
-            DictUtil.dict_merge(self.cfg, cfg)
+            DictUtil.merge(self.cfg, cfg)
