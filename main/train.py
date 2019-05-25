@@ -12,6 +12,7 @@ from torch.distributions import Categorical
 
 from main.common.batch import *
 from main.common.simple_vocab import SimpleVocab
+from main.common.glove.embedding import GloveEmbedding
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
@@ -29,7 +30,6 @@ class Train(object):
         self.max_dec_steps          = conf('max-dec-steps')
 
         self.epoch                  = conf('train:epoch')
-        self.batch_size             = conf('train:batch-size')
         self.clip_gradient_max_norm = conf('train:clip-gradient-max-norm')
         self.log_batch              = conf('train:log-batch')
         self.log_batch_interval     = conf('train:log-batch-interval', -1)
@@ -47,7 +47,6 @@ class Train(object):
         self.rl_transit_decay       = conf('train:rl:transit-decay', 0)
 
         self.save_model_per_epoch   = conf('train:save-model-per-epoch')
-        self.pointer_generator      = conf('pointer-generator')
 
         # tensorboard
         self.tb_writer = None
@@ -58,14 +57,16 @@ class Train(object):
 
         self.vocab = SimpleVocab(FileUtil.get_file_path(conf('vocab-file')), conf('vocab-size'))
 
-        self.seq2seq = cuda(Seq2Seq(self.vocab))
+        embedding = GloveEmbedding(FileUtil.get_file_path(conf('emb-file')), self.vocab) if conf('emb-file') is not None else None
 
-        self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps,
-                                                  self.pointer_generator)
+        self.seq2seq = cuda(Seq2Seq(self.vocab, embedding))
+
+        self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps, conf('pointer-generator'))
 
         self.data_loader = CNNDataLoader(FileUtil.get_file_path(conf('train:article-file')),
-                                      FileUtil.get_file_path(conf('train:summary-file')),
-                                      FileUtil.get_file_path(conf('train:keyword-file')), self.batch_size)
+                                         FileUtil.get_file_path(conf('train:summary-file')),
+                                         FileUtil.get_file_path(conf('train:keyword-file')),
+                                         conf('train:batch-size'))
 
         self.optimizer = t.optim.Adam(self.seq2seq.parameters(), lr=self.lr)
 
