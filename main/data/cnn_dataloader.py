@@ -17,8 +17,9 @@ class CNNDataLoader(DataLoader):
         self.keyword_file = keyword_file
 
     def reader(self):
-        with open(self.article_file, 'r') as art_reader, \
-                open(self.summary_file, 'r') as sum_reader, open(self.keyword_file, 'r') as kw_reader:
+        with open(self.article_file, 'r', encoding='utf-8') as art_reader, \
+                open(self.summary_file, 'r', encoding='utf-8') as sum_reader, \
+                open(self.keyword_file, 'r', encoding='utf-8') as kw_reader:
             while True:
                 try:
                     article = next(art_reader).strip()

@@ -9,18 +9,19 @@ import multiprocessing
 import tqdm
 import spacy
 import math
+import statistics
 
 nlp = spacy.load("en")
 
-SEP_QUERY = ','
 SEP_SUMMARY = '#S#'
 SEP_SUMMARY_QUERY = '#Q#'
-SEP_ENTITY = ','
+SEP_ENTITY = '#E#'
 
 dm_single_close_quote = u'\u2019'  # unicode
 dm_double_close_quote = u'\u201d'
 
-END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_double_close_quote, ")"]  # acceptable ways to end a sentence
+END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_double_close_quote,
+              ")"]  # acceptable ways to end a sentence
 
 
 class Story:
@@ -49,10 +50,9 @@ def main():
     parser.add_argument('--op', type=str, default='generate', help='preprocess|generate')
     parser.add_argument('--input_dir', nargs="*")
     parser.add_argument('--output_dir', type=str)
-    parser.add_argument('--max_ex', type=int, default=-1, help='max examples to be processed')
     parser.add_argument('--gen_all', type=int, default=1, help='1: all data, 0: only question/answer pair')
     parser.add_argument('--zip', type=int, default=1, help='1: zip data, 0: normal')
-    parser.add_argument('--validation_test_fraction', type=float, default=0.015)
+    parser.add_argument('--validation_test_fraction', type=float, default=0.025)
 
     options = parser.parse_args()
 
@@ -91,6 +91,8 @@ def extract_datasets(options):
 
     story_entities = extract_story_entities(options)
 
+    total_counter = 0
+
     for input_dir in options.input_dir:
         print('\n>>> extract strories in %s' % input_dir)
 
@@ -112,6 +114,7 @@ def extract_datasets(options):
                 if options.gen_all == 1:
                     story.query_to_summaries[''] = story.highlights
 
+                    example_counter += 1
                 continue
 
             entities, question_file = story_entities.get(story_file)
@@ -120,8 +123,6 @@ def extract_datasets(options):
             highlights = [highlight.split() for highlight in story.highlights]
 
             for entity in entities:
-                if options.max_ex > 0 and example_counter >= options.max_ex:
-                    break
 
                 entity_highlights = []
                 for highlight in highlights:
@@ -136,17 +137,12 @@ def extract_datasets(options):
 
                 example_counter += 1
 
-            if options.max_ex > 0 and example_counter >= options.max_ex:
-                break
+        total_counter += example_counter
 
         print('examples: ', example_counter)
         print('stories: ', len(dataset))
 
         datasets.update(dataset)
-
-    total_counter = 0
-    for _, article in datasets.items():
-        total_counter += len(story.query_to_summaries)
 
     print('\ntotal examples: ', total_counter)
     print('total stories: ', len(datasets))
@@ -192,6 +188,37 @@ def extract_story_entities(options):
     return story_entities
 
 
+def display_datasets(dataset, options):
+    article_len = []
+    summary_len = []
+    keyword_len = []
+    example = 0
+    doc_wo_question = 0
+
+    for story_file, story in dataset:
+        query_to_summaries = story.query_to_summaries
+
+        if options.gen_all == 1 and '' in query_to_summaries:
+            doc_wo_question += 1
+
+        for query, summaries in query_to_summaries.items():
+            keyword_len.append(len(query.split()))
+            summary_len.append(len(' '.join(summaries).split()))
+        example += len(query_to_summaries)
+
+        article_len.append(story.article_size)
+
+    print('examples: ', example)
+    print('stories: ', len(dataset))
+    print('stories-wo-question: ', doc_wo_question)
+    print('max article len: ', max(article_len))
+    print('max summary len: ', max(summary_len))
+    print('max keyword len: ', max(keyword_len))
+    print('avg article len: ', statistics.mean(article_len))
+    print('avg summary len: ', statistics.mean(summary_len))
+    print('avg keyword len: ', statistics.mean(keyword_len))
+
+
 def write_datasets(datasets, options):
     output_dir = options.output_dir
 
@@ -216,6 +243,10 @@ def write_datasets(datasets, options):
     for ds_name, ds_stories in output_ds:
 
         print('\n>>> write dataset: %s' % ds_name)
+
+        display_datasets(ds_stories, options)
+
+        continue
 
         article_filename = ds_name + '.article.txt'
         keyword_filename = ds_name + '.keyword.txt'
@@ -276,7 +307,7 @@ def write_datasets(datasets, options):
 
                     else:
                         if idx > 0:
-                            keyword_file.write(SEP_QUERY)
+                            keyword_file.write(SEP_ENTITY)
                             summary_file.write(SEP_SUMMARY_QUERY)
 
                         keyword_file.write(query)
