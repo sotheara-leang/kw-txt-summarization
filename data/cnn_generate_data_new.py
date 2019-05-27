@@ -92,6 +92,7 @@ def extract_datasets(options):
     story_entities = extract_story_entities(options)
 
     total_counter = 0
+    total_story_wo_question_counter = 0
 
     for input_dir in options.input_dir:
         print('\n>>> extract strories in %s' % input_dir)
@@ -100,6 +101,7 @@ def extract_datasets(options):
 
         dataset = {}
         example_counter = 0
+        story_wo_question_counter = 0
 
         story_files = os.listdir(story_dir_path)
         for story_file in tqdm.tqdm(story_files):
@@ -115,6 +117,8 @@ def extract_datasets(options):
                     story.query_to_summaries[''] = story.highlights
 
                     example_counter += 1
+                    story_wo_question_counter += 1
+
                 continue
 
             entities, question_file = story_entities.get(story_file)
@@ -138,14 +142,17 @@ def extract_datasets(options):
                 example_counter += 1
 
         total_counter += example_counter
+        total_story_wo_question_counter += story_wo_question_counter
 
         print('examples: ', example_counter)
         print('stories: ', len(dataset))
+        print('stories-wo-question: ', story_wo_question_counter)
 
         datasets.update(dataset)
 
     print('\ntotal examples: ', total_counter)
     print('total stories: ', len(datasets))
+    print('stories-wo-question: ', total_story_wo_question_counter)
 
     return datasets
 
@@ -156,7 +163,10 @@ def extract_story_entities(options):
     for input_dir in options.input_dir:
         print('\n>>> extract entities in %s' % input_dir)
 
+        story_dir_path = path(input_dir, 'stories')
         question_dir_path = path(input_dir, 'questions')
+
+        ds_story_entities = {}
 
         question_sub_dirs = os.listdir(question_dir_path)
         for question_sub_dir in question_sub_dirs:
@@ -164,7 +174,7 @@ def extract_story_entities(options):
 
             print('\nextract entities in %s' % question_sub_dir_path)
 
-            ds_story_entities = {}
+            sub_ds_story_entities = {}
 
             for question_file in tqdm.tqdm(os.listdir(question_sub_dir_path)):
                 question_file = path(question_sub_dir_path, question_file)
@@ -176,14 +186,20 @@ def extract_story_entities(options):
 
                 story_file = '{}.story'.format(hash_hex(question.url))
 
-                if story_file in ds_story_entities:
+                if not os.path.isfile(path(story_dir_path, story_file)) or story_file in sub_ds_story_entities:
                     continue
 
-                ds_story_entities[story_file] = (question.entities, question_file)
+                sub_ds_story_entities[story_file] = (question.entities, question_file)
 
-            print('element: %d' % len(ds_story_entities))
+            print('element: %d' % len(sub_ds_story_entities))
 
-            story_entities.update(ds_story_entities)
+            ds_story_entities.update(sub_ds_story_entities)
+
+        print('\ndataset element: %d' % len(ds_story_entities))
+
+        story_entities.update(ds_story_entities)
+
+    print('\ntotal element: %d' % len(story_entities))
 
     return story_entities
 
@@ -193,13 +209,13 @@ def display_datasets(dataset, options):
     summary_len = []
     keyword_len = []
     example = 0
-    doc_wo_question = 0
+    story_wo_question = 0
 
     for story_file, story in dataset:
         query_to_summaries = story.query_to_summaries
 
         if options.gen_all == 1 and '' in query_to_summaries:
-            doc_wo_question += 1
+            story_wo_question += 1
 
         for query, summaries in query_to_summaries.items():
             keyword_len.append(len(query.split()))
@@ -210,7 +226,7 @@ def display_datasets(dataset, options):
 
     print('examples: ', example)
     print('stories: ', len(dataset))
-    print('stories-wo-question: ', doc_wo_question)
+    print('stories-wo-question: ', story_wo_question)
     print('max article len: ', max(article_len))
     print('max summary len: ', max(summary_len))
     print('max keyword len: ', max(keyword_len))
@@ -246,7 +262,7 @@ def write_datasets(datasets, options):
 
         display_datasets(ds_stories, options)
 
-        continue
+        return
 
         article_filename = ds_name + '.article.txt'
         keyword_filename = ds_name + '.keyword.txt'

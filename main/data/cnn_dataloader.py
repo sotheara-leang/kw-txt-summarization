@@ -3,7 +3,7 @@ from main.common.dataloader import *
 
 class CNNDataLoader(DataLoader):
 
-    SEP_KEYWORD = ','
+    SEP_KEYWORD = '#E#'
     SEP_SUMMARY = '#S#'
     SEP_SUMMARY_QUERY = '#Q#'
 
