@@ -1,10 +1,11 @@
 import os
 import re
+
 import yaml
 from yaml import Loader, Dumper
 
-from main.common.util.file_util import FileUtil
 from main.common.util.dict_util import DictUtil
+from main.common.util.file_util import FileUtil
 
 
 class Configuration:
@@ -70,4 +71,4 @@ class Configuration:
         with open(FileUtil.get_file_path(conf_file), 'r') as file:
             cfg = yaml.load(file, Loader=Loader)
 
-            DictUtil.dict_merge(self.cfg, cfg)
+            DictUtil.merge(self.cfg, cfg)

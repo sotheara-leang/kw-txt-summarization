@@ -1,14 +1,12 @@
-import torch.nn as nn
 import torch.nn.functional as f
 
-from main.encoder import Encoder
-from main.reduce_encoder import ReduceEncoder
-from main.decoder import Decoder
-from main.encoder_attention import *
-from main.decoder_attention import DecoderAttention
-from main.kw_encoder import KWEncoder
 from main.common.vocab import *
-from main.common.common import *
+from main.decoder import Decoder
+from main.decoder_attention import DecoderAttention
+from main.encoder import Encoder
+from main.encoder_attention import *
+from main.kw_encoder import KWEncoder
+from main.reduce_encoder import ReduceEncoder
 
 
 class Seq2Seq(nn.Module):
@@ -72,7 +70,8 @@ class Seq2Seq(nn.Module):
     '''
 
     def forward(self, x, x_len, extend_vocab_x, max_oov_len, kw):
-        batch_size = len(x)
+        batch_size  = len(x)
+        max_x_len   = max(x_len)
 
         x = self.embedding(x)
 
@@ -90,7 +89,7 @@ class Seq2Seq(nn.Module):
         dec_input = cuda(t.tensor([TK_START['id']] * batch_size))
 
         # encoder padding mask
-        enc_padding_mask = t.zeros(batch_size, max(x_len))
+        enc_padding_mask = t.zeros(batch_size, max_x_len)
         for i in range(batch_size):
             enc_padding_mask[i, :x_len[i]] = t.ones(1, x_len[i])
 
@@ -100,8 +99,12 @@ class Seq2Seq(nn.Module):
         stop_dec_mask = cuda(t.zeros(batch_size))
 
         # keyword
-        kw = self.kw_encoder(kw)
+        if kw is None:
+            kw = cuda(t.zeros(batch_size, max_x_len))
 
+        kw = self.kw_encoder(kw.long())
+
+        # initial encoder context vector
         enc_ctx_vector = cuda(t.zeros(batch_size, 2 * self.enc_hidden_size))
 
         enc_attention = None
@@ -230,22 +233,24 @@ class Seq2Seq(nn.Module):
             att     : attention
     '''
 
-    def evaluate(self, x):
+    def evaluate(self, x, kw):
         self.eval()
 
         words = x.split()
-
         x = cuda(t.tensor(self.vocab.words2ids(words) + [TK_STOP['id']]).unsqueeze(0))
         x_len = cuda(t.tensor([len(words) + 1]))
 
         extend_vocab_x, oov = self.vocab.extend_words2ids(words)
-
         extend_vocab_x = extend_vocab_x + [TK_STOP['id']]
         extend_vocab_x = cuda(t.tensor(extend_vocab_x).unsqueeze(0))
 
         max_oov_len = len(oov)
 
-        kw = self.vocab.words2ids(kw.split())
+        if kw is None:
+            kw = cuda(t.zeros(1, x_len).long())
+        else:
+            kw = self.vocab.words2ids(kw if isinstance(kw, (list,)) else kw.split())
+            kw = cuda(t.tensor(kw).unsqueeze(0))
 
         y, att = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)
 

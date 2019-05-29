@@ -49,7 +49,7 @@ class SimpleVocab(Vocab):
             self._id2word[count] = token['word']
             count += 1
 
-        for token, nb in vocab_counter.most_common(vocab_size - 4 if vocab_size != -1 else None):   # not exclude 4 predefined tokens
+        for token, nb in vocab_counter.most_common(vocab_size - 4 if vocab_size != -1 else None):   # not include 4 predefined tokens
             self._word2id[token] = count
             self._id2word[count] = token
             count += 1

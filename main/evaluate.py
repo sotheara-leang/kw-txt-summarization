@@ -1,14 +1,15 @@
-from rouge import Rouge
+import argparse
+import datetime
 import os
 import time
-import datetime
-import argparse
 
-from main.data.dataloader import *
-from main.seq2seq import Seq2Seq
+from rouge import Rouge
+
 from main.common.batch import *
-from main.common.util.file_util import FileUtil
 from main.common.simple_vocab import SimpleVocab
+from main.common.util.file_util import FileUtil
+from main.data.cnn_dataloader import *
+from main.seq2seq import Seq2Seq
 
 
 class Evaluate(object):
@@ -33,7 +34,7 @@ class Evaluate(object):
         self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps,
                                                   self.pointer_generator)
 
-        self.data_loader = DataLoader(FileUtil.get_file_path(conf('train:article-file')),
+        self.data_loader = CNNDataLoader(FileUtil.get_file_path(conf('train:article-file')),
                                       FileUtil.get_file_path(conf('train:summary-file')),
                                       FileUtil.get_file_path(conf('train:keyword-file')), self.batch_size)
 
@@ -62,8 +63,9 @@ class Evaluate(object):
 
             # prediction
 
-            output, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len,
-                                     batch.keywords)
+            output, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
+
+            t.cuda.empty_cache()
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
