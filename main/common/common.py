@@ -1,12 +1,10 @@
 import logging
 
-import os
 import torch as t
 from singleton_decorator import singleton
 
 from main.common.configuration import Configuration
 from main.common.logger import Logger
-from main.common.util.file_util import FileUtil
 
 ctx = globals()
 

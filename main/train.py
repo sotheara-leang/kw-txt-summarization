@@ -93,9 +93,8 @@ class Train(object):
         ## ML
 
         if self.ml_enable:
-            output = self.train_ml(enc_outputs, dec_hidden, dec_cell, kw, batch, epoch_counter)
-
-            ml_loss = t.mean(output[1])
+            ml_loss = self.train_ml(enc_outputs, dec_hidden, dec_cell, kw, batch, epoch_counter)
+            ml_loss = t.mean(ml_loss)
         else:
             ml_loss = cuda(t.zeros(1))
 
@@ -174,16 +173,17 @@ class Train(object):
 
         self.optimizer.step()
 
-        loss = loss.detach()
-        ml_loss = ml_loss.detach()
-        rl_loss = rl_loss.detach()
+        loss = loss.detach().item()
+        ml_loss = ml_loss.detach().item()
+        rl_loss = rl_loss.detach().item()
+
+        t.cuda.empty_cache()
 
         time_spent = time.time() - start_time
 
         return loss, ml_loss, rl_loss, reward, rl_enable, time_spent
 
     def train_ml(self, enc_outputs, dec_hidden, dec_cell, kw, batch, epoch_counter):
-        y                   = None
         loss                = None
         enc_temporal_score  = None
         pre_dec_hiddens     = None
@@ -227,8 +227,6 @@ class Train(object):
 
             dec_output = t.multinomial(vocab_dist, 1).squeeze(1).detach()
 
-            y = dec_output.unsqueeze(1) if y is None else t.cat([y, dec_output.unsqueeze(1)], dim=1)
-
             ## teacher forcing
 
             forcing_ratio = max(0, self.ml_forcing_ratio - self.ml_forcing_decay * epoch_counter)
@@ -247,7 +245,7 @@ class Train(object):
 
         loss = t.sum(loss, dim=1) / batch.summaries_len.float()
 
-        return y, loss
+        return loss
 
     def train_rl(self, enc_outputs, dec_hidden, dec_cell, kw, batch, sampling):
         y                       = None
@@ -284,8 +282,7 @@ class Train(object):
 
                 step_log_prob = sampling_dist.log_prob(dec_output)
 
-                log_prob = step_log_prob.unsqueeze(1) if log_prob is None else t.cat(
-                    [log_prob, step_log_prob.unsqueeze(1)], dim=1)
+                log_prob = step_log_prob.unsqueeze(1) if log_prob is None else t.cat([log_prob, step_log_prob.unsqueeze(1)], dim=1)
             else:
                 ## greedy search
                 _, dec_output = t.max(vocab_dist, dim=1)
@@ -367,16 +364,16 @@ class Train(object):
 
                 epoch_time_spent += time_spent
 
-                if self.log_batch and self.log_batch_interval <= 0 or (
-                        batch_counter + 1) % self.log_batch_interval == 0:
+                if self.log_batch and self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
                     self.logger.debug(
-                        'EP\t%d,\tBAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f,\ttime=%s', i + 1,
+                        'EP\t%d,\tBAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f,\ttime=%s',
+                        i + 1,
                         batch_counter + 1,
                         loss, ml_loss, rl_loss, samples_reward, str(datetime.timedelta(seconds=time_spent)))
 
-                total_loss += loss.item()
-                total_ml_loss += ml_loss.item()
-                total_rl_loss += rl_loss.item()
+                total_loss += loss
+                total_ml_loss += ml_loss
+                total_rl_loss += rl_loss
                 total_samples_award += samples_reward
 
                 batch_counter += 1
@@ -403,8 +400,7 @@ class Train(object):
             self.data_loader.reset()
 
             # save model
-            if i == self.epoch - 1 or (
-                    self.save_model_per_epoch is not None and (i + 1) % self.save_model_per_epoch == 0):
+            if i == self.epoch - 1 or (self.save_model_per_epoch is not None and (i + 1) % self.save_model_per_epoch == 0):
                 self.save_model({'epoch': i, 'loss': epoch_loss})
 
         train_time = time.time() - train_time
@@ -441,6 +437,8 @@ class Train(object):
             # prediction
 
             output, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
+
+            t.cuda.empty_cache()
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
