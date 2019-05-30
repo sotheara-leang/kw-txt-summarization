@@ -33,6 +33,8 @@ class GloveEmbedding(nn.Embedding):
 
         super(GloveEmbedding, self).__init__(num_embeddings=vocab_size, embedding_dim=emb_size, padding_idx=TK_PADDING['id'], _weight=t.FloatTensor(embedding))
 
+        self.weight.requires_grad = False
+
     def load_emb(self, emb_file):
         with open(emb_file, 'rb') as f:
             return pickle.load(f)

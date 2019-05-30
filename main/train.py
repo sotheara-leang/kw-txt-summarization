@@ -417,7 +417,9 @@ class Train(object):
         self.seq2seq.eval()
 
         rouge = Rouge()
-        total_scores = []
+        total_scores_1 = []
+        total_scores_2 = []
+        total_scores_l = []
         total_eval_time = time.time()
         batch_counter = 0
         example_counter = 0
@@ -451,25 +453,34 @@ class Train(object):
             # calculate rouge score
 
             avg_score = rouge.get_scores(list(gen_summaries), list(reference_summaries), avg=True)
-            avg_score = avg_score["rouge-l"]["f"]
+            avg_score_1 = avg_score["rouge-1"]["f"]
+            avg_score_2 = avg_score["rouge-2"]["f"]
+            avg_score_l = avg_score["rouge-l"]["f"]
 
             eval_time = time.time() - eval_time
 
             if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                self.logger.debug('BAT\t%d:\t\tavg rouge_l score=%f\t\ttime=%s', batch_counter + 1, avg_score,
+                self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s',
+                                  batch_counter + 1,
+                                  avg_score_1, avg_score_2, avg_score_l,
                                   str(datetime.timedelta(seconds=eval_time)))
 
-            total_scores.append(avg_score)
-
+            total_scores_l.append(avg_score_1)
+            total_scores_1.append(avg_score_2)
+            total_scores_2.append(avg_score_l)
             batch_counter += 1
             example_counter += batch.size
 
-        total_avg_score = sum(total_scores) / len(total_scores)
+        avg_score_1 = sum(total_scores_1) / len(total_scores_1)
+        avg_score_2 = sum(total_scores_2) / len(total_scores_2)
+        avg_score_l = sum(total_scores_l) / len(total_scores_l)
 
         total_eval_time = time.time() - total_eval_time
 
         self.logger.debug('examples: %d', example_counter)
-        self.logger.debug('avg rouge-l score: %f', total_avg_score)
+        self.logger.debug('avg rouge-1: %f', avg_score_1)
+        self.logger.debug('avg rouge-2: %f', avg_score_2)
+        self.logger.debug('avg rouge-l: %f', avg_score_l)
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
     def load_model(self):
@@ -536,6 +547,10 @@ class Train(object):
 
             # load pre-trained model
             current_epoch = self.load_model()
+
+            #
+            total_params = sum(p.numel() for p in self.seq2seq.parameters() if p.requires_grad)
+            self.logger.debug('>>> total parameters: %d', total_params)
 
             # train
             with autograd.detect_anomaly():
