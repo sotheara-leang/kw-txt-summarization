@@ -95,9 +95,9 @@ class Evaluate(object):
                                   avg_score_1, avg_score_2, avg_score_l,
                                   str(datetime.timedelta(seconds=eval_time)))
 
-            total_scores_l.append(avg_score_1)
-            total_scores_1.append(avg_score_2)
-            total_scores_2.append(avg_score_l)
+            total_scores_1.append(avg_score_1)
+            total_scores_2.append(avg_score_2)
+            total_scores_l.append(avg_score_l)
 
             batch_counter += 1
             example_counter += batch.size
