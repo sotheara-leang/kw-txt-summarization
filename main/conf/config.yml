@@ -1,5 +1,5 @@
 emb-size: 50
-emb-file: data/train/embedding.bin
+emb-file:
 
 enc-hidden-size: 50
 dec-hidden-size: 100
@@ -10,7 +10,7 @@ max-dec-steps: 50
 vocab-size: 50000
 vocab-file: data/train/vocab.txt
 
-model-file: data/result/mode.ckpt
+model-file: data/result/model.ckpt
 
 pointer-generator: true
 share-dec-weight: true
@@ -34,7 +34,7 @@ train:
 
   ml:
     enable: true
-    forcing-ratio: 1
+    forcing-ratio: 0.75
     forcing-decay: 0
   rl:
     enable: false
@@ -46,7 +46,8 @@ train:
 
   tb:
     enable: true
-    log-dir: ${PROJ_HOME}/logs/cnn/
+    log-batch: true
+    log-dir: ${PROJ_HOME}/log/tb/
 
   article-file: data/train/training.article.txt
   summary-file: data/train/training.summary.txt
@@ -54,7 +55,7 @@ train:
 
   load-model-file:
   save-model-file: data/result/model.ckpt
-  save-model-per-epoch:
+  save-model-per-epoch: 1
 
 eval:
   batch-size: 3
@@ -63,6 +64,6 @@ eval:
 
   load-model-file: data/result/model.ckpt
 
-  article-file: data/train/article.txt
-  summary-file: data/train/summary.txt
-  keyword-file: data/train/keyword.txt
+  article-file: data/train/training.article.txt
+  summary-file: data/train/training.summary.txt
+  keyword-file: data/train/training.keyword.txt

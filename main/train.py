@@ -48,6 +48,8 @@ class Train(object):
 
         self.save_model_per_epoch   = conf('train:save-model-per-epoch')
 
+        self.tb_log_batch           = conf('tb:log-batch')
+
         # tensorboard
         self.tb_writer = None
         if conf('train:tb:enable') is True:
@@ -80,6 +82,8 @@ class Train(object):
         x = self.seq2seq.embedding(batch.articles)
 
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.seq2seq.encoder(x, batch.articles_len)
+
+        del x
 
         enc_hidden_n, enc_cell_n = self.seq2seq.reduce_encoder(enc_hidden_n, enc_cell_n)
 
@@ -227,6 +231,8 @@ class Train(object):
 
             dec_output = t.multinomial(vocab_dist, 1).squeeze(1).detach()
 
+            del vocab_dist
+
             ## teacher forcing
 
             forcing_ratio = max(0, self.ml_forcing_ratio - self.ml_forcing_decay * epoch_counter)
@@ -286,6 +292,8 @@ class Train(object):
             else:
                 ## greedy search
                 _, dec_output = t.max(vocab_dist, dim=1)
+
+            del vocab_dist
 
             ## output
 
@@ -363,6 +371,12 @@ class Train(object):
                 loss, ml_loss, rl_loss, samples_reward, enable_rl, time_spent = self.train_batch(batch, i + 1)
 
                 epoch_time_spent += time_spent
+
+                # log to tensorboard
+                if self.tb_writer is not None and self.tb_log_batch is True:
+                    self.tb_writer.add_scalar('Batch_Train/Loss', loss, total_batch_counter + 1)
+                    self.tb_writer.add_scalar('Batch_Train/ML-Loss', ml_loss, total_batch_counter + 1)
+                    self.tb_writer.add_scalar('Batch_Train/RL-Loss', rl_loss, total_batch_counter + 1)
 
                 if self.log_batch and self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
                     self.logger.debug(
