@@ -344,7 +344,7 @@ def write_datasets(datasets, options):
                         # mapping
 
                         if query == '' and len(query_to_summaries) == 1:
-                            mapping_file.write('\n')
+                            mapping_file.write('%s\n' % story.f_name)
 
                         for _, mapping in story.query_mapping.items():
                             mapping_file.write('%s:%s\n' % (story.f_name, mapping))

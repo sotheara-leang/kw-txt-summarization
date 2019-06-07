@@ -1,13 +1,13 @@
-emb-size: 50
+emb-size: 5
 emb-file:
 
-enc-hidden-size: 50
-dec-hidden-size: 100
+enc-hidden-size: 5
+dec-hidden-size: 10
 
 max-enc-steps: 100
 max-dec-steps: 50
 
-vocab-size: 50000
+vocab-size: 39000
 vocab-file: data/train/vocab.txt
 
 model-file: data/result/model.ckpt
@@ -49,9 +49,9 @@ train:
     log-batch: true
     log-dir: ${PROJ_HOME}/log/tb/
 
-  article-file: data/train/training.article.txt
-  summary-file: data/train/training.summary.txt
-  keyword-file: data/train/training.keyword.txt
+  article-file: data/extract/validation.article.txt
+  summary-file: data/extract/validation.summary.txt
+  keyword-file: data/extract/validation.keyword.txt
 
   load-model-file:
   save-model-file: data/result/model.ckpt
