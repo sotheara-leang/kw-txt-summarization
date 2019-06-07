@@ -81,10 +81,13 @@ class BatchInitializer(object):
             oovs.append(article_oovs)
 
         # summary
+        original_summaries = []
         summaries_words = []
         for summary in summaries:
             words = self.truncate(summary.split(), self.max_dec_steps)
+
             summaries_words.append(words)
+            original_summaries.append(' '.join(words))
 
         summaries_len = [len(s) + 2 for s in summaries_words]  # +2 for START & STOP
         max_summary_len = max(summaries_len)
@@ -105,7 +108,7 @@ class BatchInitializer(object):
         max_kw_len = max(kws_len)
 
         enc_keywords = []
-        for i, kw_words in enumerate(kws_words):
+        for kw_words in kws_words:
             enc_kw = self.vocab.words2ids(kw_words)
             enc_kw += [TK_PADDING['id']] * (max_kw_len - len(enc_kw))
 
@@ -133,7 +136,7 @@ class BatchInitializer(object):
                      keywords_len,
                      enc_summaries,
                      summaries_len,
-                     summaries)
+                     original_summaries)
 
     def truncate(self, words, length):
         if len(words) > length:

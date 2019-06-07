@@ -10,6 +10,7 @@ import tqdm
 import spacy
 import math
 import statistics
+import random
 from main.common.simple_vocab import SimpleVocab
 
 nlp = spacy.load("en")
@@ -267,6 +268,8 @@ def write_datasets(datasets, options):
     filtered_stories = [item for item in datasets.items()]
     if options.gen_all == 0:
         filtered_stories = [item for item in filtered_stories.items() if len(item[1].query_to_summaries) > 0]
+
+    random.shuffle(filtered_stories)
 
     num_validation_test_ds = math.ceil(options.validation_test_fraction * len(filtered_stories))
 
