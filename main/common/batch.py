@@ -13,7 +13,6 @@ class Batch(object):
                  summaries,
                  summaries_len,
                  original_summaries):
-
         self.articles = articles
         self.articles_len = articles_len
         self.extend_vocab_articles = extend_vocab_articles
@@ -42,27 +41,17 @@ class BatchInitializer(object):
         self.pointer_generator = pointer_generator
 
     def init(self, samples):
-        articles    = []
-        summaries   = []
-        keywords    = []
-
         # sort by article length
         samples = sorted(samples, key=lambda s: len(s[0].split()), reverse=True)
 
-        for sample in samples:
-            article_, keywords_, summaries_ = sample
+        articles, keywords, summaries = list(zip(*samples))
 
-            articles.extend([article_ for _ in range(len(keywords_))])
-            summaries.extend(summaries_)
-            keywords.extend(keywords_)
-
-        # article
         articles_words = []
         for article in articles:
             words = self.truncate(article.split(), self.max_enc_steps)
             articles_words.append(words)
 
-        articles_len = [len(a) + 1 for a in articles_words]       # +1 for STOP
+        articles_len = [len(a) + 1 for a in articles_words]  # +1 for STOP
         max_article_len = max(articles_len)
 
         enc_articles = []

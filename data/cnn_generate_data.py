@@ -21,8 +21,7 @@ SEP_ENTITY = '#E#'
 dm_single_close_quote = u'\u2019'  # unicode
 dm_double_close_quote = u'\u201d'
 
-END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_double_close_quote,
-              ")"]  # acceptable ways to end a sentence
+END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_double_close_quote, ")"]  # acceptable ways to end a sentence
 
 
 class Story:
@@ -289,8 +288,6 @@ def write_datasets(datasets, options):
 
         display_datasets(ds_stories, options)
 
-        continue
-
         article_filename = ds_name + '.article.txt'
         keyword_filename = ds_name + '.keyword.txt'
         summary_filename = ds_name + '.summary.txt'
@@ -345,6 +342,10 @@ def write_datasets(datasets, options):
                         summary_file.write('\n')
 
                         # mapping
+
+                        if query == '' and len(query_to_summaries) == 1:
+                            mapping_file.write('\n')
+
                         for _, mapping in story.query_mapping.items():
                             mapping_file.write('%s:%s\n' % (story.f_name, mapping))
 

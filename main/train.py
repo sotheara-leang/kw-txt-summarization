@@ -48,7 +48,7 @@ class Train(object):
 
         self.save_model_per_epoch   = conf('train:save-model-per-epoch')
 
-        self.tb_log_batch           = conf('tb:log-batch')
+        self.tb_log_batch           = conf('train:tb:log-batch')
 
         # tensorboard
         self.tb_writer = None
@@ -177,11 +177,11 @@ class Train(object):
 
         self.optimizer.step()
 
+        t.cuda.empty_cache()
+
         loss = loss.detach().item()
         ml_loss = ml_loss.detach().item()
         rl_loss = rl_loss.detach().item()
-
-        t.cuda.empty_cache()
 
         time_spent = time.time() - start_time
 
@@ -217,13 +217,6 @@ class Train(object):
             ## loss
 
             step_loss = self.criterion(t.log(vocab_dist + 1e-20), target_y[:, i])
-
-            # to be removed
-            for v in step_loss:
-                if math.isnan(v) or math.isinf(v):
-                    print('>>>> step', i)
-                    print('>>>> step_loss', step_loss)
-                    return
 
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)
 
@@ -567,8 +560,8 @@ class Train(object):
             self.logger.debug('>>> total parameters: %d', total_params)
 
             # train
-            with autograd.detect_anomaly():
-                self.train(current_epoch)
+            #with autograd.detect_anomaly():
+            self.train(current_epoch)
 
             # evaluate
             self.evaluate()
