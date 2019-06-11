@@ -2,8 +2,8 @@ import argparse
 import datetime
 import os
 import time
+from numpy import random
 
-import math
 import torch.nn as nn
 from rouge import Rouge
 from tensorboardX import SummaryWriter
@@ -16,6 +16,12 @@ from main.common.glove.embedding import GloveEmbedding
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
+
+
+random.seed(123)
+t.manual_seed(123)
+if t.cuda.is_available():
+    t.cuda.manual_seed_all(123)
 
 
 class Train(object):
