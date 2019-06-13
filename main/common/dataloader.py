@@ -5,7 +5,7 @@ from main.common.common import *
 
 class DataLoader(object):
 
-    BATCH_QUEUE_MAX = 1000
+    EXAMPLE_QUEUE_MAX = 1000
 
     def __init__(self, batch_size):
         self.logger = logger(self)
@@ -13,7 +13,7 @@ class DataLoader(object):
         self.batch_size = batch_size
         self.generator = self.reader()
 
-        self.example_queue = Queue.Queue(DataLoader.BATCH_QUEUE_MAX * self.batch_size)
+        self.example_queue = Queue.Queue(DataLoader.EXAMPLE_QUEUE_MAX)
 
     def reader(self):
         raise NotImplementedError
@@ -37,7 +37,7 @@ class DataLoader(object):
         if self.example_queue.empty() or self.example_queue.qsize() < self.batch_size:
             examples = []
 
-            examples_len = DataLoader.BATCH_QUEUE_MAX - self.example_queue.qsize()
+            examples_len = DataLoader.EXAMPLE_QUEUE_MAX - self.example_queue.qsize()
             for i in range(examples_len):
                 try:
                     example = next(self.generator)
