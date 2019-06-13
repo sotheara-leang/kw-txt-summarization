@@ -10,6 +10,7 @@ from main.common.simple_vocab import SimpleVocab
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
+from main.common.glove.embedding import GloveEmbedding
 
 
 class Evaluate(object):
@@ -29,14 +30,15 @@ class Evaluate(object):
 
         self.vocab = SimpleVocab(FileUtil.get_file_path(conf('vocab-file')), conf('vocab-size'))
 
-        self.seq2seq = cuda(Seq2Seq(self.vocab))
+        embedding = GloveEmbedding(FileUtil.get_file_path(conf('emb-file')), self.vocab) if conf('emb-file') is not None else None
 
-        self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps,
-                                                  self.pointer_generator)
+        self.seq2seq = cuda(Seq2Seq(self.vocab, embedding))
 
-        self.data_loader = CNNDataLoader(FileUtil.get_file_path(conf('train:article-file')),
-                                      FileUtil.get_file_path(conf('train:summary-file')),
-                                      FileUtil.get_file_path(conf('train:keyword-file')), self.batch_size)
+        self.batch_initializer = BatchInitializer(self.vocab, self.max_enc_steps, self.max_dec_steps, self.pointer_generator)
+
+        self.data_loader = CNNDataLoader(FileUtil.get_file_path(conf('eval:article-file')),
+                                      FileUtil.get_file_path(conf('eval:summary-file')),
+                                      FileUtil.get_file_path(conf('eval:keyword-file')), self.batch_size)
 
     def evaluate(self):
         self.logger.debug('>>> evaluation:')
@@ -44,7 +46,9 @@ class Evaluate(object):
         self.seq2seq.eval()
 
         rouge = Rouge()
-        total_scores = []
+        total_scores_1 = []
+        total_scores_2 = []
+        total_scores_l = []
         total_eval_time = time.time()
         batch_counter = 0
         example_counter = 0
@@ -78,27 +82,36 @@ class Evaluate(object):
             # calculate rouge score
 
             avg_score = rouge.get_scores(list(gen_summaries), list(reference_summaries), avg=True)
-            avg_score = avg_score["rouge-l"]["f"]
+            avg_score_1 = avg_score["rouge-1"]["f"]
+            avg_score_2 = avg_score["rouge-2"]["f"]
+            avg_score_l = avg_score["rouge-l"]["f"]
 
             # logging batch
 
             eval_time = time.time() - eval_time
 
             if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                self.logger.debug('BAT\t%d:\t\tavg rouge_l score=%.3f\t\ttime=%s', batch_counter + 1, avg_score,
+                self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s', batch_counter + 1,
+                                  avg_score_1, avg_score_2, avg_score_l,
                                   str(datetime.timedelta(seconds=eval_time)))
 
-            total_scores.append(avg_score)
+            total_scores_1.append(avg_score_1)
+            total_scores_2.append(avg_score_2)
+            total_scores_l.append(avg_score_l)
 
             batch_counter += 1
             example_counter += batch.size
 
-        avg_score = sum(total_scores) / len(total_scores)
+        avg_score_1 = sum(total_scores_1) / len(total_scores_1)
+        avg_score_2 = sum(total_scores_2) / len(total_scores_2)
+        avg_score_l = sum(total_scores_l) / len(total_scores_l)
 
         total_eval_time = time.time() - total_eval_time
 
         self.logger.debug('examples: %d', example_counter)
-        self.logger.debug('avg rouge-l score: %f', avg_score)
+        self.logger.debug('avg rouge-1: %f', avg_score_1)
+        self.logger.debug('avg rouge-2: %f', avg_score_2)
+        self.logger.debug('avg rouge-l: %f', avg_score_l)
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
     def load_model(self):

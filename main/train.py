@@ -2,8 +2,8 @@ import argparse
 import datetime
 import os
 import time
+from numpy import random
 
-import math
 import torch.nn as nn
 from rouge import Rouge
 from tensorboardX import SummaryWriter
@@ -16,6 +16,12 @@ from main.common.glove.embedding import GloveEmbedding
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
+
+
+random.seed(123)
+t.manual_seed(123)
+if t.cuda.is_available():
+    t.cuda.manual_seed_all(123)
 
 
 class Train(object):
@@ -47,6 +53,8 @@ class Train(object):
         self.rl_transit_decay       = conf('train:rl:transit-decay', 0)
 
         self.save_model_per_epoch   = conf('train:save-model-per-epoch')
+
+        self.tb_log_batch           = conf('train:tb:log-batch')
 
         # tensorboard
         self.tb_writer = None
@@ -80,6 +88,8 @@ class Train(object):
         x = self.seq2seq.embedding(batch.articles)
 
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.seq2seq.encoder(x, batch.articles_len)
+
+        del x
 
         enc_hidden_n, enc_cell_n = self.seq2seq.reduce_encoder(enc_hidden_n, enc_cell_n)
 
@@ -173,11 +183,11 @@ class Train(object):
 
         self.optimizer.step()
 
+        t.cuda.empty_cache()
+
         loss = loss.detach().item()
         ml_loss = ml_loss.detach().item()
         rl_loss = rl_loss.detach().item()
-
-        t.cuda.empty_cache()
 
         time_spent = time.time() - start_time
 
@@ -214,18 +224,13 @@ class Train(object):
 
             step_loss = self.criterion(t.log(vocab_dist + 1e-20), target_y[:, i])
 
-            # to be removed
-            for v in step_loss:
-                if math.isnan(v) or math.isinf(v):
-                    print('>>>> step', i)
-                    print('>>>> step_loss', step_loss)
-                    return
-
             loss = step_loss.unsqueeze(1) if loss is None else t.cat([loss, step_loss.unsqueeze(1)], dim=1)
 
             ## output
 
             dec_output = t.multinomial(vocab_dist, 1).squeeze(1).detach()
+
+            del vocab_dist
 
             ## teacher forcing
 
@@ -286,6 +291,8 @@ class Train(object):
             else:
                 ## greedy search
                 _, dec_output = t.max(vocab_dist, dim=1)
+
+            del vocab_dist
 
             ## output
 
@@ -364,6 +371,12 @@ class Train(object):
 
                 epoch_time_spent += time_spent
 
+                # log to tensorboard
+                if self.tb_writer is not None and self.tb_log_batch is True:
+                    self.tb_writer.add_scalar('Batch_Train/Loss', loss, total_batch_counter + 1)
+                    self.tb_writer.add_scalar('Batch_Train/ML-Loss', ml_loss, total_batch_counter + 1)
+                    self.tb_writer.add_scalar('Batch_Train/RL-Loss', rl_loss, total_batch_counter + 1)
+
                 if self.log_batch and self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
                     self.logger.debug(
                         'EP\t%d,\tBAT\t%d:\tloss=%.3f,\tml-loss=%.3f,\trl-loss=%.3f,\treward=%.3f,\ttime=%s',
@@ -417,7 +430,9 @@ class Train(object):
         self.seq2seq.eval()
 
         rouge = Rouge()
-        total_scores = []
+        total_scores_1 = []
+        total_scores_2 = []
+        total_scores_l = []
         total_eval_time = time.time()
         batch_counter = 0
         example_counter = 0
@@ -451,25 +466,34 @@ class Train(object):
             # calculate rouge score
 
             avg_score = rouge.get_scores(list(gen_summaries), list(reference_summaries), avg=True)
-            avg_score = avg_score["rouge-l"]["f"]
+            avg_score_1 = avg_score["rouge-1"]["f"]
+            avg_score_2 = avg_score["rouge-2"]["f"]
+            avg_score_l = avg_score["rouge-l"]["f"]
 
             eval_time = time.time() - eval_time
 
             if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                self.logger.debug('BAT\t%d:\t\tavg rouge_l score=%f\t\ttime=%s', batch_counter + 1, avg_score,
+                self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s',
+                                  batch_counter + 1,
+                                  avg_score_1, avg_score_2, avg_score_l,
                                   str(datetime.timedelta(seconds=eval_time)))
 
-            total_scores.append(avg_score)
-
+            total_scores_1.append(avg_score_1)
+            total_scores_2.append(avg_score_2)
+            total_scores_l.append(avg_score_l)
             batch_counter += 1
             example_counter += batch.size
 
-        total_avg_score = sum(total_scores) / len(total_scores)
+        avg_score_1 = sum(total_scores_1) / len(total_scores_1)
+        avg_score_2 = sum(total_scores_2) / len(total_scores_2)
+        avg_score_l = sum(total_scores_l) / len(total_scores_l)
 
         total_eval_time = time.time() - total_eval_time
 
         self.logger.debug('examples: %d', example_counter)
-        self.logger.debug('avg rouge-l score: %f', total_avg_score)
+        self.logger.debug('avg rouge-1: %f', avg_score_1)
+        self.logger.debug('avg rouge-2: %f', avg_score_2)
+        self.logger.debug('avg rouge-l: %f', avg_score_l)
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
     def load_model(self):
@@ -537,9 +561,13 @@ class Train(object):
             # load pre-trained model
             current_epoch = self.load_model()
 
+            #
+            total_params = sum(p.numel() for p in self.seq2seq.parameters() if p.requires_grad)
+            self.logger.debug('>>> total parameters: %d', total_params)
+
             # train
-            with autograd.detect_anomaly():
-                self.train(current_epoch)
+            #with autograd.detect_anomaly():
+            self.train(current_epoch)
 
             # evaluate
             self.evaluate()

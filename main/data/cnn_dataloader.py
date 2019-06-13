@@ -17,28 +17,28 @@ class CNNDataLoader(DataLoader):
         self.keyword_file = keyword_file
 
     def reader(self):
-        with open(self.article_file, 'r', encoding='utf-8') as art_reader, \
-                open(self.summary_file, 'r', encoding='utf-8') as sum_reader, \
-                open(self.keyword_file, 'r', encoding='utf-8') as kw_reader:
-            while True:
-                try:
-                    article = next(art_reader).strip()
-                    summaries = next(sum_reader).strip()
-                    kws = next(kw_reader).strip()
+        try:
+            with open(self.article_file, 'r', encoding='utf-8') as art_reader, \
+                    open(self.summary_file, 'r', encoding='utf-8') as sum_reader, \
+                    open(self.keyword_file, 'r', encoding='utf-8') as kw_reader:
+                while True:
+                    try:
+                        article = next(art_reader).strip()
+                        summaries = next(sum_reader).strip()
+                        kws = next(kw_reader).strip()
 
-                    if article == '' or summaries == '':
-                        continue
+                        if article == '' or summaries == '':
+                            continue
 
-                    summaries = summaries.split(CNNDataLoader.SEP_SUMMARY_QUERY)
-                    summaries = [summary.replace(CNNDataLoader.SEP_SUMMARY, ' ').strip() for summary in summaries]
+                        summaries = summaries.replace(CNNDataLoader.SEP_SUMMARY, ' ')
 
-                    kws = kws.strip().split(CNNDataLoader.SEP_KEYWORD)
-                    kws = [kw.strip() for kw in kws]
+                        yield article, kws, summaries
 
-                    yield article, kws, summaries
-
-                except StopIteration as e:
-                    yield None
-                except Exception as e:
-                    self.logger.error(e, exc_info=True)
-                    raise e
+                    except StopIteration as e:
+                        yield None
+                    except Exception as e:
+                        self.logger.error(e, exc_info=True)
+                        raise e
+        except IOError as e:
+            self.logger.error(e, exc_info=True)
+            raise e

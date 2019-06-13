@@ -214,14 +214,10 @@ class Seq2Seq(nn.Module):
             ptr_dist = ptr_prob * enc_att
 
             vocab_dist = (1 - ptr_prob) * vocab_dist
+            vocab_dist = t.cat([vocab_dist, cuda(t.zeros(len(dec_input), max_oov_len))], dim=1)
+            vocab_dist.scatter_add(1, extend_vocab_x, ptr_dist)
 
-            final_vocab_dist = cuda(t.zeros(len(dec_input), self.vocab.size() + max_oov_len))
-            final_vocab_dist[:, :self.vocab.size()] = vocab_dist
-            final_vocab_dist.scatter_add(1, extend_vocab_x, ptr_dist)
-        else:
-            final_vocab_dist = vocab_dist
-
-        return final_vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, dec_ctx_vector, dec_att
+        return vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, dec_ctx_vector, dec_att
 
     '''
         :params

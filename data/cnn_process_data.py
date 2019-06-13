@@ -26,7 +26,7 @@ def extract_samples(file_in, number, dir_out, fname):
 
         for article in tqdm.tqdm(art_reader):
 
-            if number > 0 and counter_ >= number:
+            if number > 0 and counter_ >= number + 1:
                 break
 
             summary = next(sum_reader)

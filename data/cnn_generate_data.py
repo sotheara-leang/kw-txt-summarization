@@ -10,6 +10,7 @@ import tqdm
 import spacy
 import math
 import statistics
+import random
 from main.common.simple_vocab import SimpleVocab
 
 nlp = spacy.load("en")
@@ -21,8 +22,7 @@ SEP_ENTITY = '#E#'
 dm_single_close_quote = u'\u2019'  # unicode
 dm_double_close_quote = u'\u201d'
 
-END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_double_close_quote,
-              ")"]  # acceptable ways to end a sentence
+END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_double_close_quote, ")"]  # acceptable ways to end a sentence
 
 
 class Story:
@@ -269,6 +269,8 @@ def write_datasets(datasets, options):
     if options.gen_all == 0:
         filtered_stories = [item for item in filtered_stories.items() if len(item[1].query_to_summaries) > 0]
 
+    random.shuffle(filtered_stories)
+
     num_validation_test_ds = math.ceil(options.validation_test_fraction * len(filtered_stories))
 
     validation_stories = filtered_stories[:num_validation_test_ds]
@@ -288,8 +290,6 @@ def write_datasets(datasets, options):
         print('\n>>> write dataset: %s' % ds_name)
 
         display_datasets(ds_stories, options)
-
-        continue
 
         article_filename = ds_name + '.article.txt'
         keyword_filename = ds_name + '.keyword.txt'
@@ -345,6 +345,10 @@ def write_datasets(datasets, options):
                         summary_file.write('\n')
 
                         # mapping
+
+                        if query == '' and len(query_to_summaries) == 1:
+                            mapping_file.write('%s\n' % story.f_name)
+
                         for _, mapping in story.query_mapping.items():
                             mapping_file.write('%s:%s\n' % (story.f_name, mapping))
 
