@@ -54,7 +54,7 @@ class DataLoader(object):
             for example in examples:
                 self.example_queue.put(example)
 
-        return self.example_queue.get(block=False)
+        return None if self.example_queue.qsize() == 0 else self.example_queue.get(block=False)
 
     def read_all(self):
         samples = []
