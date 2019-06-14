@@ -57,10 +57,12 @@ class DataLoader(object):
         return None if self.example_queue.qsize() == 0 else self.example_queue.get(block=False)
 
     def read_all(self):
+        self.reset()
+
         samples = []
         while True:
             try:
-                sample = self.next()
+                sample = next(self.generator)
                 if sample is None:
                     break
 
