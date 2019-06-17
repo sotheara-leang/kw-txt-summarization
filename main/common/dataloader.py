@@ -5,7 +5,7 @@ from main.common.common import *
 
 class DataLoader(object):
 
-    EXAMPLE_QUEUE_MAX = 1000
+    EXAMPLE_QUEUE_MAX = 2000
 
     def __init__(self, batch_size):
         self.logger = logger(self)

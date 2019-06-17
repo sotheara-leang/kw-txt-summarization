@@ -81,10 +81,23 @@ class Evaluate(object):
 
             # calculate rouge score
 
-            avg_score = rouge.get_scores(list(gen_summaries), list(reference_summaries), avg=True)
-            avg_score_1 = avg_score["rouge-1"]["f"]
-            avg_score_2 = avg_score["rouge-2"]["f"]
-            avg_score_l = avg_score["rouge-l"]["f"]
+            scores = rouge.get_scores(list(gen_summaries), list(reference_summaries))
+
+            scores_1 = []
+            scores_2 = []
+            scores_l = []
+            for score in scores:
+                scores_1.append(score["rouge-1"]["f"])
+                scores_2.append(score["rouge-2"]["f"])
+                scores_l.append(score["rouge-l"]["f"])
+
+            avg_score_1 = sum(scores_1) / len(scores_1)
+            avg_score_2 = sum(scores_2) / len(scores_2)
+            avg_score_l = sum(scores_l) / len(scores_l)
+
+            total_scores_1.extend(scores_1)
+            total_scores_2.extend(scores_2)
+            total_scores_l.extend(scores_l)
 
             # logging batch
 
@@ -94,10 +107,6 @@ class Evaluate(object):
                 self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s', batch_counter + 1,
                                   avg_score_1, avg_score_2, avg_score_l,
                                   str(datetime.timedelta(seconds=eval_time)))
-
-            total_scores_1.append(avg_score_1)
-            total_scores_2.append(avg_score_2)
-            total_scores_l.append(avg_score_l)
 
             batch_counter += 1
             example_counter += batch.size
