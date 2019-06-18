@@ -2,6 +2,7 @@ import argparse
 import datetime
 import os
 import time
+import numpy as np
 from numpy import random
 
 import torch.nn as nn
@@ -130,14 +131,22 @@ class Train(object):
             sampling_summaries = []
             sampling_outputs = sampling_output[0].tolist()
             for idx, summary in enumerate(sampling_outputs):
-                summary = [w for w in summary if w != TK_STOP['id']]
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
 
                 sampling_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
             baseline_summaries = []
             baseline_outputs = baseline_output[0].tolist()
             for idx, summary in enumerate(baseline_outputs):
-                summary = [w for w in summary if w != TK_STOP['id']]
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
 
                 baseline_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
@@ -145,13 +154,11 @@ class Train(object):
 
             # calculate rouge score
 
-            rouge = Rouge()
+            sampling_scores = self.get_reward(list(sampling_summaries), list(reference_summaries))
+            sampling_scores = cuda(sampling_scores)
 
-            sampling_scores = rouge.get_scores(list(sampling_summaries), list(reference_summaries))
-            sampling_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in sampling_scores]))
-
-            baseline_scores = rouge.get_scores(list(baseline_summaries), list(reference_summaries))
-            baseline_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in baseline_scores]))
+            baseline_scores = self.get_reward(list(baseline_summaries), list(reference_summaries))
+            baseline_scores = cuda(baseline_scores)
 
             # loss
 
@@ -162,7 +169,7 @@ class Train(object):
 
             # reward
 
-            reward = t.mean(sampling_scores)
+            reward = t.mean(sampling_scores).item()
 
             rl_weight = self.rl_weight if self.ml_enable else 1
         else:
@@ -465,35 +472,51 @@ class Train(object):
 
             # calculate rouge score
 
-            avg_score = rouge.get_scores(list(gen_summaries), list(reference_summaries), avg=True)
-            avg_score_1 = avg_score["rouge-1"]["f"]
-            avg_score_2 = avg_score["rouge-2"]["f"]
-            avg_score_l = avg_score["rouge-l"]["f"]
+            scores = rouge.get_scores(list(gen_summaries), list(reference_summaries))
+
+            scores_1 = []
+            scores_2 = []
+            scores_l = []
+            for score in scores:
+                scores_1.append(score["rouge-1"]["f"])
+                scores_2.append(score["rouge-2"]["f"])
+                scores_l.append(score["rouge-l"]["f"])
+
+            total_scores_1 = np.append(total_scores_1, scores_1, axis=0)
+            total_scores_2 = np.append(total_scores_2, scores_2, axis=0)
+            total_scores_l = np.append(total_scores_l, scores_l, axis=0)
 
             eval_time = time.time() - eval_time
 
             if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
+                avg_score_1 = np.mean(np.asarray(scores_1), axis=0)
+                avg_score_2 = np.mean(np.asarray(scores_2), axis=0)
+                avg_score_l = np.mean(np.asarray(scores_l), axis=0)
+
                 self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s',
                                   batch_counter + 1,
                                   avg_score_1, avg_score_2, avg_score_l,
                                   str(datetime.timedelta(seconds=eval_time)))
 
-            total_scores_1.append(avg_score_1)
-            total_scores_2.append(avg_score_2)
-            total_scores_l.append(avg_score_l)
             batch_counter += 1
             example_counter += batch.size
 
-        avg_score_1 = sum(total_scores_1) / len(total_scores_1)
-        avg_score_2 = sum(total_scores_2) / len(total_scores_2)
-        avg_score_l = sum(total_scores_l) / len(total_scores_l)
+        total_avg_score_1 = np.mean(total_scores_1, axis=0)
+        total_std_score_1 = total_scores_1.std(axis=0)
+
+        total_avg_score_2 = np.mean(total_scores_2, axis=0)
+        total_std_score_2 = total_scores_2.std(axis=0)
+
+        total_avg_score_l = np.mean(total_scores_l, axis=0)
+        total_std_score_l = total_scores_l.std(axis=0)
 
         total_eval_time = time.time() - total_eval_time
 
         self.logger.debug('examples: %d', example_counter)
-        self.logger.debug('avg rouge-1: %f', avg_score_1)
-        self.logger.debug('avg rouge-2: %f', avg_score_2)
-        self.logger.debug('avg rouge-l: %f', avg_score_l)
+        self.logger.debug('avg rouge-1: %f\t, std rouge-1: %f', total_avg_score_1, total_std_score_1)
+        self.logger.debug('avg rouge-2: %f\t, std rouge-2: %f', total_avg_score_2, total_std_score_2)
+        self.logger.debug('avg rouge-l: %f\t, std rouge-l: %f', total_avg_score_l, total_std_score_l)
+
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
     def load_model(self):
@@ -574,6 +597,31 @@ class Train(object):
         except Exception as e:
             self.logger.error(e, exc_info=True)
             raise e
+
+    def get_reward(self, decoded_sents, original_sents):
+        rouge = Rouge()
+        try:
+            scores = rouge.get_scores(decoded_sents, original_sents)
+        except Exception:
+            self.logger.error("Rouge failed for multi sentence evaluation.. Finding exact pair")
+
+            scores = []
+            for i in range(len(decoded_sents)):
+                try:
+                    score = rouge.get_scores(decoded_sents[i], original_sents[i])
+                except Exception:
+                    self.logger.error("Error occured at:")
+                    self.logger.error("decoded_sents: ", decoded_sents[i])
+                    self.logger.error("original_sents: ", original_sents[i])
+
+                    score = [{"rouge-l": {"f": 0.0}}]
+
+                scores.append(score[0])
+
+        rouge_l_f1 = [score["rouge-l"]["f"] for score in scores]
+        rouge_l_f1 = t.Tensor(rouge_l_f1)
+
+        return rouge_l_f1
 
 
 if __name__ == "__main__":
