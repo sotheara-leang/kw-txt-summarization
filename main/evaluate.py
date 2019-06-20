@@ -82,7 +82,7 @@ class Evaluate(object):
 
             # calculate rouge score
 
-            scores = rouge.get_scores(list(gen_summaries), list(reference_summaries))
+            scores = rouge.get_scores(gen_summaries, reference_summaries)
 
             scores_1 = []
             scores_2 = []

@@ -131,23 +131,11 @@ class Train(object):
             sampling_summaries = []
             sampling_outputs = sampling_output[0].tolist()
             for idx, summary in enumerate(sampling_outputs):
-                try:
-                    stop_idx = summary.index(TK_STOP['id'])
-                    summary = summary[:stop_idx]
-                except ValueError:
-                    pass
-
                 sampling_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
             baseline_summaries = []
             baseline_outputs = baseline_output[0].tolist()
             for idx, summary in enumerate(baseline_outputs):
-                try:
-                    stop_idx = summary.index(TK_STOP['id'])
-                    summary = summary[:stop_idx]
-                except ValueError:
-                    pass
-
                 baseline_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
             reference_summaries = batch.original_summaries
@@ -164,7 +152,7 @@ class Train(object):
 
             sampling_log_prob = sampling_output[1]
 
-            rl_loss = (baseline_scores - sampling_scores) * sampling_log_prob
+            rl_loss = (sampling_scores - baseline_scores) * sampling_log_prob
             rl_loss = t.mean(rl_loss)
 
             # reward
@@ -464,15 +452,13 @@ class Train(object):
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
-                summary = [w for w in summary if w != TK_STOP['id']]
-
                 gen_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
 
             reference_summaries = batch.original_summaries
 
             # calculate rouge score
 
-            scores = rouge.get_scores(list(gen_summaries), list(reference_summaries))
+            scores = rouge.get_scores(gen_summaries, reference_summaries)
 
             scores_1 = []
             scores_2 = []
@@ -603,16 +589,15 @@ class Train(object):
         try:
             scores = rouge.get_scores(decoded_sents, original_sents)
         except Exception:
-            self.logger.error("Rouge failed for multi sentence evaluation.. Finding exact pair")
+            self.logger.error("Rouge failed for multi sentence evaluation..")
 
             scores = []
             for i in range(len(decoded_sents)):
                 try:
                     score = rouge.get_scores(decoded_sents[i], original_sents[i])
                 except Exception:
-                    self.logger.error("Error occured at:")
-                    self.logger.error("decoded_sents: ", decoded_sents[i])
-                    self.logger.error("original_sents: ", original_sents[i])
+                    self.logger.error("decoded_sents: %s", decoded_sents[i])
+                    self.logger.error("original_sents: %s", original_sents[i])
 
                     score = [{"rouge-l": {"f": 0.0}}]
 
