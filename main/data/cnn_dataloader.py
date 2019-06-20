@@ -7,10 +7,10 @@ class CNNDataLoader(DataLoader):
     SEP_SUMMARY = '#S#'
     SEP_SUMMARY_QUERY = '#Q#'
 
-    def __init__(self, article_file, summary_file, keyword_file, batch_size):
+    def __init__(self, article_file, summary_file, keyword_file, batch_size, mode='train'):
         self.logger = logger(self)
 
-        super(CNNDataLoader, self).__init__(batch_size)
+        super(CNNDataLoader, self).__init__(batch_size, mode)
 
         self.article_file = article_file
         self.summary_file = summary_file
