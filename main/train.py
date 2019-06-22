@@ -2,8 +2,6 @@ import argparse
 import datetime
 import os
 import time
-import numpy as np
-from numpy import random
 
 import torch.nn as nn
 from rouge import Rouge
@@ -17,12 +15,6 @@ from main.common.glove.embedding import GloveEmbedding
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
-
-
-random.seed(123)
-t.manual_seed(123)
-if t.cuda.is_available():
-    t.cuda.manual_seed_all(123)
 
 
 class Train(object):
@@ -131,12 +123,28 @@ class Train(object):
             sampling_summaries = []
             sampling_outputs = sampling_output[0].tolist()
             for idx, summary in enumerate(sampling_outputs):
-                sampling_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
+
+                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
+
+                sampling_summaries.append(summary)
 
             baseline_summaries = []
             baseline_outputs = baseline_output[0].tolist()
             for idx, summary in enumerate(baseline_outputs):
-                baseline_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
+
+                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
+
+                baseline_summaries.append(summary)
 
             reference_summaries = batch.original_summaries
 
@@ -152,7 +160,7 @@ class Train(object):
 
             sampling_log_prob = sampling_output[1]
 
-            rl_loss = (sampling_scores - baseline_scores) * sampling_log_prob
+            rl_loss = (baseline_scores - sampling_scores) * sampling_log_prob
             rl_loss = t.mean(rl_loss)
 
             # reward
@@ -452,56 +460,49 @@ class Train(object):
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
-                gen_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
+
+                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
+
+                gen_summaries.append(summary)
 
             reference_summaries = batch.original_summaries
 
             # calculate rouge score
 
-            scores = rouge.get_scores(gen_summaries, reference_summaries)
-
-            scores_1 = []
-            scores_2 = []
-            scores_l = []
-            for score in scores:
-                scores_1.append(score["rouge-1"]["f"])
-                scores_2.append(score["rouge-2"]["f"])
-                scores_l.append(score["rouge-l"]["f"])
-
-            total_scores_1 = np.append(total_scores_1, scores_1, axis=0)
-            total_scores_2 = np.append(total_scores_2, scores_2, axis=0)
-            total_scores_l = np.append(total_scores_l, scores_l, axis=0)
+            avg_score = rouge.get_scores(gen_summaries, reference_summaries, avg=True)
+            avg_score_1 = avg_score["rouge-1"]["f"]
+            avg_score_2 = avg_score["rouge-2"]["f"]
+            avg_score_l = avg_score["rouge-l"]["f"]
 
             eval_time = time.time() - eval_time
 
             if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                avg_score_1 = np.mean(np.asarray(scores_1), axis=0)
-                avg_score_2 = np.mean(np.asarray(scores_2), axis=0)
-                avg_score_l = np.mean(np.asarray(scores_l), axis=0)
-
-                self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s',
-                                  batch_counter + 1,
+                self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s', batch_counter + 1,
                                   avg_score_1, avg_score_2, avg_score_l,
                                   str(datetime.timedelta(seconds=eval_time)))
+
+            total_scores_1.append(avg_score_1)
+            total_scores_2.append(avg_score_2)
+            total_scores_l.append(avg_score_l)
 
             batch_counter += 1
             example_counter += batch.size
 
-        total_avg_score_1 = np.mean(total_scores_1, axis=0)
-        total_std_score_1 = total_scores_1.std(axis=0)
-
-        total_avg_score_2 = np.mean(total_scores_2, axis=0)
-        total_std_score_2 = total_scores_2.std(axis=0)
-
-        total_avg_score_l = np.mean(total_scores_l, axis=0)
-        total_std_score_l = total_scores_l.std(axis=0)
+        avg_score_1 = sum(total_scores_1) / len(total_scores_1)
+        avg_score_2 = sum(total_scores_2) / len(total_scores_2)
+        avg_score_l = sum(total_scores_l) / len(total_scores_l)
 
         total_eval_time = time.time() - total_eval_time
 
         self.logger.debug('examples: %d', example_counter)
-        self.logger.debug('avg rouge-1: %f\t, std rouge-1: %f', total_avg_score_1, total_std_score_1)
-        self.logger.debug('avg rouge-2: %f\t, std rouge-2: %f', total_avg_score_2, total_std_score_2)
-        self.logger.debug('avg rouge-l: %f\t, std rouge-l: %f', total_avg_score_l, total_std_score_l)
+        self.logger.debug('avg rouge-1: %f', avg_score_1)
+        self.logger.debug('avg rouge-2: %f', avg_score_2)
+        self.logger.debug('avg rouge-l: %f', avg_score_l)
 
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
@@ -517,7 +518,10 @@ class Train(object):
         if os.path.isfile(model_file):
             self.logger.debug('>>> load pre-trained model from: %s', model_file)
 
-            checkpoint = t.load(model_file)
+            if conf('device') == 'cpu':
+                checkpoint = t.load(model_file, map_location='cpu')
+            else:
+                checkpoint = t.load(model_file)
 
             epoch = checkpoint['epoch']
             loss = checkpoint['loss']

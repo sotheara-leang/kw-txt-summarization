@@ -1,5 +1,7 @@
 import logging
 
+import random
+import numpy as np
 import torch as t
 from singleton_decorator import singleton
 
@@ -11,7 +13,16 @@ ctx = globals()
 @singleton
 class AppContext(object):
 
+    def init_rand_seed(self):
+        random.seed(123)
+        np.random.seed(123)
+        t.manual_seed(123)
+        if t.cuda.is_available():
+            t.cuda.manual_seed_all(123)
+
     def __init__(self, conf_file=None):
+        self.init_rand_seed()
+
         if conf_file is None:
             conf_file = 'main/conf/config.yml'
 
