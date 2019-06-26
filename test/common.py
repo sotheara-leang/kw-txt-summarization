@@ -1,6 +1,6 @@
 from main.common.common import *
 
-AppContext()
+AppContext('main/conf/train/config.yml')
 
 
 
