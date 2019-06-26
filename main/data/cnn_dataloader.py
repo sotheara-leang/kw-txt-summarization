@@ -34,11 +34,8 @@ class CNNDataLoader(DataLoader):
 
                         yield article, kws, summaries
 
-                    except StopIteration as e:
+                    except StopIteration:
                         yield None
-                    except Exception as e:
-                        self.logger.error(e, exc_info=True)
-                        raise e
         except IOError as e:
             self.logger.error(e, exc_info=True)
             raise e

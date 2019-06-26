@@ -87,7 +87,7 @@ class Train(object):
         enc_hidden_n, enc_cell_n = self.seq2seq.reduce_encoder(enc_hidden_n, enc_cell_n)
 
         dec_hidden = enc_hidden_n
-        dec_cell = cuda(t.zeros(batch.size, self.dec_hidden_size))
+        dec_cell = enc_cell_n
 
         ## encoding keyword
 
@@ -615,7 +615,7 @@ class Train(object):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--conf_file', type=str)
+    parser.add_argument('--conf_file', type=str, default='main/conf/train/config.yml')
 
     args = parser.parse_args()
 

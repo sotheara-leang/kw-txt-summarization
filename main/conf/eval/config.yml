@@ -1,0 +1,31 @@
+emb-size: 50
+emb-file:
+
+enc-hidden-size: 50
+dec-hidden-size: 100
+
+max-enc-steps: 100
+max-dec-steps: 50
+
+vocab-size: 50000
+vocab-file: data/extract/vocab.txt
+
+pointer-generator: true
+share-dec-weight: true
+
+device: cpu
+
+logging:
+  enable: true
+  conf-file:
+
+eval:
+  batch-size: 30
+  log-batch: true
+  log-batch-interval: 1
+
+  load-model-file: data/result/model.ckpt
+
+  article-file: data/validation/validation.article.txt
+  summary-file: data/validation/validation.summary.txt
+  keyword-file: data/validation/validation.keyword.txt
