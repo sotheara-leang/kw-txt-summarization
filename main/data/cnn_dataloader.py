@@ -7,10 +7,10 @@ class CNNDataLoader(DataLoader):
     SEP_SUMMARY = '#S#'
     SEP_SUMMARY_QUERY = '#Q#'
 
-    def __init__(self, article_file, summary_file, keyword_file, batch_size):
+    def __init__(self, article_file, summary_file, keyword_file, batch_size, mode='train'):
         self.logger = logger(self)
 
-        super(CNNDataLoader, self).__init__(batch_size)
+        super(CNNDataLoader, self).__init__(batch_size, mode)
 
         self.article_file = article_file
         self.summary_file = summary_file
@@ -34,11 +34,8 @@ class CNNDataLoader(DataLoader):
 
                         yield article, kws, summaries
 
-                    except StopIteration as e:
+                    except StopIteration:
                         yield None
-                    except Exception as e:
-                        self.logger.error(e, exc_info=True)
-                        raise e
         except IOError as e:
             self.logger.error(e, exc_info=True)
             raise e

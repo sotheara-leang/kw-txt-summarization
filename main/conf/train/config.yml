@@ -1,0 +1,56 @@
+emb-size: 100
+emb-file:
+
+enc-hidden-size: 100
+dec-hidden-size: 200
+
+max-enc-steps: 800
+max-dec-steps: 100
+
+vocab-size: 50000
+vocab-file: data/extract/vocab.txt
+
+pointer-generator: true
+share-dec-weight: true
+
+device: cpu
+
+logging:
+  enable: true
+  conf-file:
+
+train:
+  epoch: 10
+  batch-size: 10
+  log-batch: true
+  log-batch-interval: 20
+  clip-gradient-max-norm:
+
+  lr: 0.001
+  lr-decay: 1
+  lr-decay-epoch: 50
+
+  ml:
+    enable: true
+    forcing-ratio: 0.75
+    forcing-decay: 0
+  rl:
+    enable: false
+    transit-epoch: 10
+    transit-decay: 0
+    weight: 0.9984
+
+  eval: true
+
+  tb:
+    enable: true
+    log-batch: true
+    log-dir: ${PROJ_HOME}/log/train/tb/
+
+  article-file: data/train/training.article.txt
+  summary-file: data/train/training.summary.txt
+  keyword-file: data/train/training.keyword.txt
+
+  load-model-file:
+  save-model-file: data/result/model.ckpt
+  save-model-per-epoch: 1

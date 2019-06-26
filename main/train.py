@@ -2,7 +2,6 @@ import argparse
 import datetime
 import os
 import time
-from numpy import random
 
 import torch.nn as nn
 from rouge import Rouge
@@ -16,12 +15,6 @@ from main.common.glove.embedding import GloveEmbedding
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
-
-
-random.seed(123)
-t.manual_seed(123)
-if t.cuda.is_available():
-    t.cuda.manual_seed_all(123)
 
 
 class Train(object):
@@ -94,7 +87,7 @@ class Train(object):
         enc_hidden_n, enc_cell_n = self.seq2seq.reduce_encoder(enc_hidden_n, enc_cell_n)
 
         dec_hidden = enc_hidden_n
-        dec_cell = cuda(t.zeros(batch.size, self.dec_hidden_size))
+        dec_cell = enc_cell_n
 
         ## encoding keyword
 
@@ -130,28 +123,38 @@ class Train(object):
             sampling_summaries = []
             sampling_outputs = sampling_output[0].tolist()
             for idx, summary in enumerate(sampling_outputs):
-                summary = [w for w in summary if w != TK_STOP['id']]
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
 
-                sampling_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
+
+                sampling_summaries.append(summary)
 
             baseline_summaries = []
             baseline_outputs = baseline_output[0].tolist()
             for idx, summary in enumerate(baseline_outputs):
-                summary = [w for w in summary if w != TK_STOP['id']]
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
 
-                baseline_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
+
+                baseline_summaries.append(summary)
 
             reference_summaries = batch.original_summaries
 
             # calculate rouge score
 
-            rouge = Rouge()
+            sampling_scores = self.get_reward(list(sampling_summaries), list(reference_summaries))
+            sampling_scores = cuda(sampling_scores)
 
-            sampling_scores = rouge.get_scores(list(sampling_summaries), list(reference_summaries))
-            sampling_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in sampling_scores]))
-
-            baseline_scores = rouge.get_scores(list(baseline_summaries), list(reference_summaries))
-            baseline_scores = cuda(t.tensor([score["rouge-l"]["f"] for score in baseline_scores]))
+            baseline_scores = self.get_reward(list(baseline_summaries), list(reference_summaries))
+            baseline_scores = cuda(baseline_scores)
 
             # loss
 
@@ -162,7 +165,7 @@ class Train(object):
 
             # reward
 
-            reward = t.mean(sampling_scores)
+            reward = t.mean(sampling_scores).item()
 
             rl_weight = self.rl_weight if self.ml_enable else 1
         else:
@@ -457,15 +460,21 @@ class Train(object):
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
-                summary = [w for w in summary if w != TK_STOP['id']]
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
 
-                gen_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
+
+                gen_summaries.append(summary)
 
             reference_summaries = batch.original_summaries
 
             # calculate rouge score
 
-            avg_score = rouge.get_scores(list(gen_summaries), list(reference_summaries), avg=True)
+            avg_score = rouge.get_scores(gen_summaries, reference_summaries, avg=True)
             avg_score_1 = avg_score["rouge-1"]["f"]
             avg_score_2 = avg_score["rouge-2"]["f"]
             avg_score_l = avg_score["rouge-l"]["f"]
@@ -473,14 +482,14 @@ class Train(object):
             eval_time = time.time() - eval_time
 
             if self.log_batch_interval <= 0 or (batch_counter + 1) % self.log_batch_interval == 0:
-                self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s',
-                                  batch_counter + 1,
+                self.logger.debug('BAT\t%d:\t\trouge-1=%.3f\t\trouge-2=%.3f\t\trouge-l=%.3f\t\ttime=%s', batch_counter + 1,
                                   avg_score_1, avg_score_2, avg_score_l,
                                   str(datetime.timedelta(seconds=eval_time)))
 
             total_scores_1.append(avg_score_1)
             total_scores_2.append(avg_score_2)
             total_scores_l.append(avg_score_l)
+
             batch_counter += 1
             example_counter += batch.size
 
@@ -494,6 +503,7 @@ class Train(object):
         self.logger.debug('avg rouge-1: %f', avg_score_1)
         self.logger.debug('avg rouge-2: %f', avg_score_2)
         self.logger.debug('avg rouge-l: %f', avg_score_l)
+
         self.logger.debug('time\t:\t%s', str(datetime.timedelta(seconds=total_eval_time)))
 
     def load_model(self):
@@ -508,7 +518,10 @@ class Train(object):
         if os.path.isfile(model_file):
             self.logger.debug('>>> load pre-trained model from: %s', model_file)
 
-            checkpoint = t.load(model_file)
+            if conf('device') == 'cpu':
+                checkpoint = t.load(model_file, map_location='cpu')
+            else:
+                checkpoint = t.load(model_file)
 
             epoch = checkpoint['epoch']
             loss = checkpoint['loss']
@@ -575,10 +588,34 @@ class Train(object):
             self.logger.error(e, exc_info=True)
             raise e
 
+    def get_reward(self, decoded_sents, original_sents):
+        rouge = Rouge()
+        try:
+            scores = rouge.get_scores(decoded_sents, original_sents)
+        except Exception:
+            self.logger.error("Rouge failed for multi sentence evaluation..")
+
+            scores = []
+            for i in range(len(decoded_sents)):
+                try:
+                    score = rouge.get_scores(decoded_sents[i], original_sents[i])
+                except Exception:
+                    self.logger.error("decoded_sents: %s", decoded_sents[i])
+                    self.logger.error("original_sents: %s", original_sents[i])
+
+                    score = [{"rouge-l": {"f": 0.0}}]
+
+                scores.append(score[0])
+
+        rouge_l_f1 = [score["rouge-l"]["f"] for score in scores]
+        rouge_l_f1 = t.Tensor(rouge_l_f1)
+
+        return rouge_l_f1
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--conf_file', type=str)
+    parser.add_argument('--conf_file', type=str, default='main/conf/train/config.yml')
 
     args = parser.parse_args()
 

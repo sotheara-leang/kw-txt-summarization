@@ -38,7 +38,7 @@ class Evaluate(object):
 
         self.data_loader = CNNDataLoader(FileUtil.get_file_path(conf('eval:article-file')),
                                       FileUtil.get_file_path(conf('eval:summary-file')),
-                                      FileUtil.get_file_path(conf('eval:keyword-file')), self.batch_size)
+                                      FileUtil.get_file_path(conf('eval:keyword-file')), self.batch_size, 'eval')
 
     def evaluate(self):
         self.logger.debug('>>> evaluation:')
@@ -73,15 +73,21 @@ class Evaluate(object):
 
             gen_summaries = []
             for idx, summary in enumerate(output.tolist()):
-                summary = [w for w in summary if w != TK_STOP['id']]
+                try:
+                    stop_idx = summary.index(TK_STOP['id'])
+                    summary = summary[:stop_idx]
+                except ValueError:
+                    pass
 
-                gen_summaries.append(' '.join(self.vocab.ids2words(summary, batch.oovs[idx])))
+                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
+
+                gen_summaries.append(summary)
 
             reference_summaries = batch.original_summaries
 
             # calculate rouge score
 
-            avg_score = rouge.get_scores(list(gen_summaries), list(reference_summaries), avg=True)
+            avg_score = rouge.get_scores(gen_summaries, reference_summaries, avg=True)
             avg_score_1 = avg_score["rouge-1"]["f"]
             avg_score_2 = avg_score["rouge-2"]["f"]
             avg_score_l = avg_score["rouge-l"]["f"]
@@ -123,7 +129,10 @@ class Evaluate(object):
         if os.path.isfile(model_file):
             self.logger.debug('>>> load pre-trained model from: %s', model_file)
 
-            checkpoint = t.load(model_file)
+            if conf('device') == 'cpu':
+                checkpoint = t.load(model_file, map_location='cpu')
+            else:
+                checkpoint = t.load(model_file)
 
             epoch = checkpoint['epoch']
             loss = checkpoint['loss']
@@ -152,7 +161,7 @@ class Evaluate(object):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--conf_file', type=str)
+    parser.add_argument('--conf_file', type=str, default='main/conf/eval/config.yml')
 
     args = parser.parse_args()
 

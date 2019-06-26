@@ -83,7 +83,7 @@ class Seq2Seq(nn.Module):
         dec_hidden = enc_hidden_n
 
         # initial decoder cell
-        dec_cell = cuda(t.zeros(batch_size, self.dec_hidden_size))
+        dec_cell = enc_cell_n
 
         # initial decoder input
         dec_input = cuda(t.tensor([TK_START['id']] * batch_size))

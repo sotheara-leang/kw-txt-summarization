@@ -2,7 +2,9 @@
 
 opt=$1
 
-if [ -z "$opt" ]
+user=''
+
+if [[ -z "$opt" ]]
 then
     echo "opt is required"
 else
@@ -15,7 +17,7 @@ else
 
         if test $opt == "connect"
         then
-            echo "ssh -N -f -L localhost:$i:localhost:$i leang@barbulle"
+            echo "ssh -N -f -L localhost:$i:localhost:$i $user"
             ssh -N -f -L localhost:$i:localhost:$i leang@barbulle
 
         elif test $opt == "disconnect"

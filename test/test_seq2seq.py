@@ -17,7 +17,11 @@ class TestSeq2Seq(TestCase):
         rouge = Rouge()
 
         summary = summary.split()
-        summary = [w for w in summary if w != TK_STOP['word']]
+        try:
+            stop_idx = summary.index(TK_STOP['word'])
+            summary = summary[:stop_idx]
+        except ValueError:
+            pass
 
         score = rouge.get_scores(' '.join(summary), reference)[0]["rouge-l"]["f"]
 
@@ -33,7 +37,7 @@ class TestSeq2Seq(TestCase):
 
         seq2seq = cuda(Seq2Seq(vocab))
 
-        checkpoint = t.load(FileUtil.get_file_path(conf('model-file')))
+        checkpoint = t.load(FileUtil.get_file_path(conf('train:load-model-file')))
 
         seq2seq.load_state_dict(checkpoint['model_state_dict'])
 

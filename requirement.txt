@@ -8,6 +8,7 @@ blis==0.2.4
 certifi==2019.3.9
 chardet==3.0.4
 Colr==0.8.9
+cycler==0.10.0
 cymem==2.0.2
 decorator==4.4.0
 defusedxml==0.6.0
@@ -29,6 +30,7 @@ jupyterlab==0.35.5
 jupyterlab-server==0.2.0
 Keras-Applications==1.0.7
 Keras-Preprocessing==1.0.9
+kiwisolver==1.1.0
 Markdown==3.1
 MarkupSafe==1.1.1
 matplotlib==3.0.3
@@ -52,6 +54,7 @@ prompt-toolkit==2.0.9
 protobuf==3.7.1
 ptyprocess==0.6.0
 Pygments==2.3.1
+pyparsing==2.4.0
 pyrsistent==0.14.11
 python-dateutil==2.8.0
 PyYAML==5.1

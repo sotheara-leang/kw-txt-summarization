@@ -1,6 +1,6 @@
 import argparse
 import os
-
+from random import shuffle
 import tqdm
 
 '''
@@ -51,6 +51,8 @@ def extract_samples(file_in, number, dir_out, fname):
     art_output_fname = art_fname if fname is None else fname[0]
     key_output_fname = key_fname if fname is None else fname[1]
     sum_output_fname = sum_fname if fname is None else fname[2]
+
+    shuffle(samples)
 
     with open(dir_out + '/' + art_output_fname, 'w', encoding='utf-8') as art_writer, \
             open(dir_out + '/' + key_output_fname, 'w', encoding='utf-8') as key_writer, \
