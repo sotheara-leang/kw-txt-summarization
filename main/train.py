@@ -1,6 +1,5 @@
 import argparse
 import datetime
-import os
 import time
 
 import torch.nn as nn
@@ -82,12 +81,7 @@ class Train(object):
 
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.seq2seq.encoder(x, batch.articles_len)
 
-        del x
-
-        enc_hidden_n, enc_cell_n = self.seq2seq.reduce_encoder(enc_hidden_n, enc_cell_n)
-
-        dec_hidden = enc_hidden_n
-        dec_cell = enc_cell_n
+        dec_hidden, dec_cell = self.seq2seq.reduce_encoder(enc_hidden_n, enc_cell_n)
 
         ## encoding keyword
 
@@ -209,8 +203,10 @@ class Train(object):
         enc_ctx_vector      = cuda(t.zeros(batch.size, 2 * self.enc_hidden_size))
 
         for i in range(1, max_dec_len):
+            dec_input = self.seq2seq.embedding(dec_input)
+
             ## decoding
-            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, _, enc_temporal_score, _, _ = self.seq2seq.decode(
+            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, _, enc_temporal_score, _, _ = self.seq2seq.decoder(
                 dec_input,
                 dec_hidden,
                 dec_cell,
@@ -232,8 +228,6 @@ class Train(object):
             ## output
 
             dec_output = t.multinomial(vocab_dist, 1).squeeze(1).detach()
-
-            del vocab_dist
 
             ## teacher forcing
 
@@ -269,8 +263,10 @@ class Train(object):
         decoding_padding_mask   = []
 
         for i in range(1, self.max_dec_steps):
+            dec_input = self.seq2seq.embedding(dec_input)
+
             ## decoding
-            vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score, _, _ = self.seq2seq.decode(
+            vocab_dist, dec_hidden, dec_cell, _, _, enc_temporal_score, _, _ = self.seq2seq.decoder(
                 dec_input,
                 dec_hidden,
                 dec_cell,
@@ -294,8 +290,6 @@ class Train(object):
             else:
                 ## greedy search
                 _, dec_output = t.max(vocab_dist, dim=1)
-
-            del vocab_dist
 
             ## output
 
