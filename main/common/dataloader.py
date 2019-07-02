@@ -3,6 +3,7 @@ from random import shuffle
 
 from main.common.common import *
 
+
 class DataLoader(object):
 
     EXAMPLE_QUEUE_MAX = 2000

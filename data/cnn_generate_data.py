@@ -11,7 +11,7 @@ import spacy
 import math
 import statistics
 import random
-from main.common.simple_vocab import SimpleVocab
+#from main.common.simple_vocab import SimpleVocab
 
 nlp = spacy.load("en")
 
@@ -35,7 +35,6 @@ class Story:
         self.query_to_summaries = {} if query_to_summaries is None else query_to_summaries
         self.entities = entities if entities is not None else []
         self.f_name = f_name
-        self.query_mapping = {}
 
 
 class Question:
@@ -48,11 +47,11 @@ class Question:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--op', type=str, default='generate', help='preprocess|generate')
+
+    parser.add_argument('--opt', type=str, default='generate', help='preprocess|generate|filter')
     parser.add_argument('--input_dir', nargs="*")
     parser.add_argument('--output_dir', type=str)
     parser.add_argument('--gen_all', type=int, default=1, help='1: all data, 0: only question/answer pair')
-    parser.add_argument('--zip', type=int, default=1, help='1: zip data, 0: normal')
     parser.add_argument('--validation_test_fraction', type=float, default=0.10)
 
     parser.add_argument('--vocab_file', type=str)
@@ -60,11 +59,11 @@ def main():
 
     options = parser.parse_args()
 
-    if options.op == 'preprocess':
+    if options.opt == 'preprocess':
         print('>>> pre-process datafiles')
         preprocess_datafiles(options)
 
-    elif options.op == 'generate':
+    elif options.opt == 'generate':
         print('>>> process datafiles')
         datsets = extract_datasets(options)
 
@@ -91,7 +90,8 @@ def preprocess_datafiles(options):
 
 
 def extract_datasets(options):
-    vocab = SimpleVocab(options.vocab_file, options.vocab_size)
+    # if options.opt == 'filter':
+    #     vocab = SimpleVocab(options.vocab_file, options.vocab_size)
 
     datasets = {}
 
@@ -137,16 +137,17 @@ def extract_datasets(options):
             for entity in entities:
                 entity_element = entity.split()
 
-                # check if entity exist in vocabulary
-                is_valid_entity = True
-                for e in entity_element:
-                    if not vocab.word_exists(e):
-                        is_valid_entity = False
-                        break
-
-                if is_valid_entity == False:
-                    example_w_invalid_token += 1
-                    continue
+                # if options.opt == 'filter':
+                #     # check if entity exist in vocabulary
+                #     is_valid_entity = True
+                #     for e in entity_element:
+                #         if not vocab.word_exists(e):
+                #             is_valid_entity = False
+                #             break
+                #
+                #     if is_valid_entity == False:
+                #         example_w_invalid_token += 1
+                #         continue
 
                 # extract highlights from article
                 entity_highlights = []
@@ -158,7 +159,6 @@ def extract_datasets(options):
                     continue
 
                 story.query_to_summaries[entity] = [' '.join(highlight) for highlight in entity_highlights]
-                story.query_mapping[entity] = question_file
 
                 example_counter += 1
 
@@ -295,7 +295,6 @@ def write_datasets(datasets, options):
         keyword_filename = ds_name + '.keyword.txt'
         summary_filename = ds_name + '.summary.txt'
         entity_filename = ds_name + '.entity.txt'
-        mapping_filename = ds_name + '.mapping.txt'
 
         sorted_stories = sorted(ds_stories, key=lambda story_tuple: story_tuple[1].article_size, reverse=False)
 
@@ -306,70 +305,27 @@ def write_datasets(datasets, options):
         with open(path(output_set_dir, article_filename), 'w', encoding='utf-8') as article_file, \
                 open(path(output_set_dir, summary_filename), 'w', encoding='utf-8') as summary_file, \
                 open(path(output_set_dir, keyword_filename), 'w', encoding='utf-8') as keyword_file, \
-                open(path(output_set_dir, entity_filename), 'w', encoding='utf-8') as entity_file, \
-                open(path(output_set_dir, mapping_filename), 'w', encoding='utf-8') as mapping_file:
+                open(path(output_set_dir, entity_filename), 'w', encoding='utf-8') as entity_file:
 
             for story_file, story in tqdm.tqdm(sorted_stories):
                 article_text = story.article_text
                 query_to_summaries = story.query_to_summaries
                 entities = story.entities
 
-                if options.zip is 1:
-                    article_file.write(article_text + '\n')
-                    entity_file.write(SEP_ENTITY.join(entities) + '\n')
-
-                    # mapping
-                    mapping_file.write(story.f_name)
-                    for _, mapping in story.query_mapping.items():
-                        if options.zip == 1:
-                            mapping_file.write(':%s' % mapping)
-                        else:
-                            mapping_file.write('%s\n' % mapping)
-
-                    mapping_file.write('\n')
-
                 for idx, query_to_summary in enumerate(query_to_summaries.items()):
                     query, summaries = query_to_summary
 
-                    if options.zip == 0:
-                        article_file.write(article_text + '\n')
-                        keyword_file.write(query + '\n')
-                        entity_file.write(SEP_ENTITY.join(entities) + '\n')
+                    article_file.write(article_text + '\n')
+                    keyword_file.write(query + '\n')
+                    entity_file.write(SEP_ENTITY.join(entities) + '\n')
 
-                        # summary
-                        for sum_idx, summary in enumerate(summaries):
-                            if sum_idx > 0:
-                                summary_file.write(SEP_SUMMARY)
+                    # summary
+                    for sum_idx, summary in enumerate(summaries):
+                        if sum_idx > 0:
+                            summary_file.write(SEP_SUMMARY)
 
-                            summary_file.write(summary)
-                        summary_file.write('\n')
-
-                        # mapping
-
-                        if query == '' and len(query_to_summaries) == 1:
-                            mapping_file.write('%s\n' % story.f_name)
-
-                        for _, mapping in story.query_mapping.items():
-                            mapping_file.write('%s:%s\n' % (story.f_name, mapping))
-
-                    else:
-                        if idx > 0:
-                            keyword_file.write(SEP_ENTITY)
-                            summary_file.write(SEP_SUMMARY_QUERY)
-
-                        keyword_file.write(query)
-
-                        # summary
-                        for sum_idx, summary in enumerate(summaries):
-                            if sum_idx > 0:
-                                summary_file.write(SEP_SUMMARY)
-
-                            summary_file.write(summary)
-
-                if options.zip is 1:
-                    keyword_file.write('\n')
+                        summary_file.write(summary)
                     summary_file.write('\n')
-
 
 def extract_question(question_file):
     if not os.path.isfile(question_file) or not question_file.endswith('.question'):

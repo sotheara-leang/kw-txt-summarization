@@ -5,6 +5,7 @@ from main.encoder_attention import *
 from main.reduce_encoder import ReduceEncoder
 from main.kw_encoder import KWEncoder
 
+
 class Seq2Seq(nn.Module):
 
     def __init__(self, vocab: Vocab, embedding=None):
@@ -13,6 +14,8 @@ class Seq2Seq(nn.Module):
         self.emb_size           = conf('emb-size')
         self.enc_hidden_size    = conf('enc-hidden-size')
         self.vocab_size         = conf('vocab-size')
+
+        self.max_dec_steps      = conf('max-dec-steps')
 
         self.vocab = vocab
 
@@ -27,16 +30,16 @@ class Seq2Seq(nn.Module):
         self.kw_encoder = KWEncoder(self.embedding)
 
     '''
-            :params
-                x                : B, L
-                x_len            : B
-                extend_vocab_x   : B, L
-                max_oov_len      : C
-                kw               : B, L
+        :params
+            x                : B, L
+            x_len            : B
+            extend_vocab_x   : B, L
+            max_oov_len      : C
+            kw               : B, L
 
-            :returns
-                y                : B, L
-                att              : B, L
+        :returns
+            y                : B, L
+            att              : B, L
     '''
     def forward(self, x, x_len, extend_vocab_x, max_oov_len, kw):
         batch_size  = len(x)
@@ -63,7 +66,7 @@ class Seq2Seq(nn.Module):
 
         # keyword
         if kw is None:
-            kw = cuda(t.zeros(batch_size, max_x_len))
+            kw = cuda(t.zeros(batch_size, 1))
 
         kw = self.kw_encoder(kw.long())
 
@@ -139,9 +142,7 @@ class Seq2Seq(nn.Module):
 
         max_oov_len = len(oov)
 
-        if kw is None:
-            kw = cuda(t.zeros(1, x_len).long())
-        else:
+        if kw is not None:
             kw = self.vocab.words2ids(kw if isinstance(kw, (list,)) else kw.split())
             kw = cuda(t.tensor(kw).unsqueeze(0))
 

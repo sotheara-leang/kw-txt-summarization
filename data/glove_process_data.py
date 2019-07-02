@@ -1,6 +1,6 @@
 import argparse
 import pickle
-
+import os
 import numpy as np
 import tqdm
 
@@ -8,15 +8,18 @@ import tqdm
 def count(file_in):
     counter = 0
     with open(file_in, 'r', encoding='utf-8') as f:
-        for line in f:
+        for _ in f:
             counter += 1
     return counter
 
 
-def generate_embedding(file_in, dir_out, fname):
+def generate_embedding(file, dir_out, fname):
     word2vect = {}
 
-    with open(file_in, 'r', encoding='utf-8') as f:
+    if not os.path.exists(dir_out):
+        os.makedirs(dir_out)
+
+    with open(file, 'r', encoding='utf-8') as f:
         for line in tqdm.tqdm(f):
             line = line.split()
 
@@ -36,26 +39,19 @@ def generate_embedding(file_in, dir_out, fname):
         pickle.dump(data, f)
 
 
-def generate_vocab(file_in, dir_out, fname):
-    output_fname = 'glove-vocab.txt' if fname is None else fname
-
-    with open(file_in, 'r') as r, open(dir_out + '/' + output_fname, 'w') as w:
-        words = []
-        for line in tqdm.tqdm(r):
-            line = line.split()
-            word = line[0]
-
-            words.append(word)
-
-        for word in words:
-            w.write(word + '\n')
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--opt', type=str, default='gen_vocab')
-    parser.add_argument('--file_in', type=str)
+
+    # gen_emb|count
+    parser.add_argument('--opt', type=str, default='gen_emb')
+
+    # glove embedding file
+    parser.add_argument('--file', type=str)
+
+    # output directory
     parser.add_argument('--dir_out', type=str, default='extract')
+
+    # output file name
     parser.add_argument('--fname', type=str)
 
     args = parser.parse_args()
@@ -63,9 +59,7 @@ if __name__ == '__main__':
     opt = args.opt
 
     if opt == 'count':
-        nb = count(args.file_in)
+        nb = count(args.file)
         print(nb)
-    elif opt == 'gen_vocab':
-        generate_vocab(args.file_in, args.dir_out, args.fname)
     elif opt == 'gen_emb':
-        generate_embedding(args.file_in, args.dir_out, args.fname)
+        generate_embedding(args.file, args.dir_out, args.fname)

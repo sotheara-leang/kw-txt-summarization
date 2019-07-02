@@ -144,10 +144,10 @@ class Train(object):
 
             # calculate rouge score
 
-            sampling_scores = self.get_reward(list(sampling_summaries), list(reference_summaries))
+            sampling_scores = self.get_reward(sampling_summaries, reference_summaries)
             sampling_scores = cuda(sampling_scores)
 
-            baseline_scores = self.get_reward(list(baseline_summaries), list(reference_summaries))
+            baseline_scores = self.get_reward(baseline_summaries, reference_summaries)
             baseline_scores = cuda(baseline_scores)
 
             # loss
