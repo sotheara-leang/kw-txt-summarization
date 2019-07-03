@@ -9,8 +9,8 @@ from torch import autograd
 from torch.distributions import Categorical
 
 from main.common.batch import *
-from main.common.simple_vocab import SimpleVocab
 from main.common.glove.embedding import GloveEmbedding
+from main.common.simple_vocab import SimpleVocab
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq

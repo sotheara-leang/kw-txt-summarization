@@ -1,5 +1,6 @@
-from main.encoder_attention import *
 from main.decoder_attention import *
+from main.encoder_attention import *
+
 
 class Decoder(nn.Module):
 

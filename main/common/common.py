@@ -1,9 +1,9 @@
 import logging
-
+import os
 import random
+
 import numpy as np
 import torch as t
-import os
 from singleton_decorator import singleton
 
 from main.common.configuration import Configuration

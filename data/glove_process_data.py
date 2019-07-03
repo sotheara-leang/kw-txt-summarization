@@ -1,6 +1,7 @@
 import argparse
-import pickle
 import os
+import pickle
+
 import numpy as np
 import tqdm
 

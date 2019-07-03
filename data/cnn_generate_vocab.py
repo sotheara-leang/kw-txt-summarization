@@ -1,6 +1,7 @@
 import argparse
 import collections
 import os
+
 import tqdm
 
 escape = {'#S#': ' '}

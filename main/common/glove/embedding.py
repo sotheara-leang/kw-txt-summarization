@@ -1,6 +1,5 @@
 import pickle
 
-import numpy as np
 import torch.nn as nn
 
 from main.common.vocab import *

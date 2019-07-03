@@ -1,7 +1,7 @@
+import collections
 import logging.config
 import re
-import collections
-import os
+
 import yaml
 
 from main.common.common import *

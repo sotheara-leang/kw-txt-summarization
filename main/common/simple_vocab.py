@@ -1,6 +1,5 @@
-import csv
 import collections
-import os
+import csv
 
 from main.common.vocab import *
 

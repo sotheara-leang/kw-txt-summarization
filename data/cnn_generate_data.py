@@ -4,13 +4,15 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import argparse
 import hashlib
-import os
 import multiprocessing
-import tqdm
-import spacy
-import math
-import statistics
+import os
 import random
+import statistics
+
+import math
+import spacy
+import tqdm
+
 #from main.common.simple_vocab import SimpleVocab
 
 nlp = spacy.load("en")
