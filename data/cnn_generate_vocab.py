@@ -1,30 +1,22 @@
 import argparse
 import collections
 import os
+
 import tqdm
 
-escape = {'#S#': ' ', '#Q#': ' '}
+escape = {'#S#': ' '}
 
 
-''' 
-    opt:
-        vocab
-            file_in: article, summary file
-            
-        entity-vocab
-            file_in: keyword file
-'''
-def generate_vocab(files_in, dir_out, fname, max_vocab, option):
+def generate_vocab(files, dir_out, fname, max_vocab):
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
 
     reach_max_vocab = False
     vocab_counter = collections.Counter()
 
-    for file in files_in:
+    for file in files:
         with open(file, 'r', encoding='utf-8') as reader:
 
-            # build vocab
             for line in tqdm.tqdm(reader):
 
                 for abbr, sign in escape.items():
@@ -33,8 +25,8 @@ def generate_vocab(files_in, dir_out, fname, max_vocab, option):
                 if line == '':
                     break
 
-                if option == 'entity':
-                    line = line.replace(',', ' ')
+                for abbr, sign in escape.items():
+                    line = line.replace(abbr, sign)
 
                 tokens = line.split()
 
@@ -49,12 +41,7 @@ def generate_vocab(files_in, dir_out, fname, max_vocab, option):
         if reach_max_vocab is True:
             break
 
-    if option == 'vocab':
-        output_fname = 'vocab.txt' if fname is None else fname
-    elif option == 'entity':
-        output_fname = 'entity-vocab.txt' if fname is None else fname
-
-    with open(dir_out + '/' + output_fname, 'w', encoding='utf-8') as writer:
+    with open(dir_out + '/' + fname, 'w', encoding='utf-8') as writer:
         vocab_counter = sorted(vocab_counter.items(), key=lambda e: e[1], reverse=True)
 
         for i, element in enumerate(vocab_counter):
@@ -70,13 +57,18 @@ def generate_vocab(files_in, dir_out, fname, max_vocab, option):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--opt', type=str, default="vocab")   # vocab|entity
-    parser.add_argument('--file', nargs="*")
-    parser.add_argument('--fname', nargs="*")
+    # article file, summary file
+    parser.add_argument('--files', nargs="*")
+
+    # output file name
+    parser.add_argument('--fname', type=str, default="vocab.txt")
+
+    # vocabulary size
     parser.add_argument('--max_vocab', type=int, default="-1")
+
+    # output dir
     parser.add_argument('--dir_out', type=str, default="extract")
 
     args = parser.parse_args()
 
-    generate_vocab(args.file, args.dir_out, args.fname[0] if args.fname is not None else None, args.max_vocab, args.opt)
-
+    generate_vocab(args.files, args.dir_out, args.fname, args.max_vocab)

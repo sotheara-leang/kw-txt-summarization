@@ -1,6 +1,5 @@
 import pickle
 
-import numpy as np
 import torch.nn as nn
 
 from main.common.vocab import *
@@ -8,7 +7,7 @@ from main.common.vocab import *
 
 class GloveEmbedding(nn.Embedding):
 
-    def __init__(self, emb_file, vocab):
+    def __init__(self, emb_file, vocab, freeze=True):
         self.logger = logger(self)
 
         self.logger.debug('initialize embedding from: %s', emb_file)
@@ -33,7 +32,7 @@ class GloveEmbedding(nn.Embedding):
 
         super(GloveEmbedding, self).__init__(num_embeddings=vocab_size, embedding_dim=emb_size, padding_idx=TK_PADDING['id'], _weight=t.FloatTensor(embedding))
 
-        self.weight.requires_grad = False
+        self.weight.requires_grad = not freeze
 
     def load_emb(self, emb_file):
         with open(emb_file, 'rb') as f:

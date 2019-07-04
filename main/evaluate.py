@@ -1,16 +1,15 @@
 import argparse
 import datetime
-import os
 import time
 
 from rouge import Rouge
 
 from main.common.batch import *
+from main.common.glove.embedding import GloveEmbedding
 from main.common.simple_vocab import SimpleVocab
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
-from main.common.glove.embedding import GloveEmbedding
 
 
 class Evaluate(object):

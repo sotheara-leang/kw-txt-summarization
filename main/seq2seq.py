@@ -1,8 +1,5 @@
-import torch.nn.functional as f
-
 from main.common.vocab import *
 from main.decoder import Decoder
-from main.decoder_attention import DecoderAttention
 from main.encoder import Encoder
 from main.encoder_attention import *
 from main.kw_encoder import KWEncoder
@@ -16,59 +13,34 @@ class Seq2Seq(nn.Module):
 
         self.emb_size           = conf('emb-size')
         self.enc_hidden_size    = conf('enc-hidden-size')
-        self.dec_hidden_size    = conf('dec-hidden-size')
         self.vocab_size         = conf('vocab-size')
+
         self.max_dec_steps      = conf('max-dec-steps')
-        self.share_dec_weight   = conf('share-dec-weight')
-        self.pointer_generator  = conf('pointer-generator')
 
         self.vocab = vocab
 
         self.embedding = embedding
         if self.embedding is None:
-            self.embedding = nn.Embedding(self.vocab.size(), self.emb_size, padding_idx=TK_PADDING['id'])
+            self.embedding = nn.Embedding(self.vocab_size, self.emb_size , padding_idx=TK_PADDING['id'])
 
         self.encoder = Encoder()
         self.reduce_encoder = ReduceEncoder()
-        self.decoder = Decoder()
-
-        self.enc_att = EncoderAttention()
-        self.dec_att = DecoderAttention()
-
-        combined_hidden_size = self.dec_hidden_size + 2 * self.enc_hidden_size + self.dec_hidden_size
-
-        if self.pointer_generator is True:
-            self.ptr_gen = nn.Linear(combined_hidden_size, 1)
-
-        # sharing decoder weight
-        if self.share_dec_weight is True:
-            proj_layer = nn.Linear(combined_hidden_size, self.emb_size)
-
-            output_layer = nn.Linear(self.emb_size, self.vocab_size)
-            output_layer.weight.data = self.embedding.weight.data  # sharing weight with embedding
-
-            self.vocab_gen = nn.Sequential(
-                proj_layer,
-                output_layer
-            )
-        else:
-            self.vocab_gen = nn.Linear(combined_hidden_size, self.vocab_size)
+        self.decoder = Decoder(self.embedding)
 
         self.kw_encoder = KWEncoder(self.embedding)
 
     '''
-            :params
-                x                : B, L
-                x_len            : B
-                extend_vocab_x   : B, L
-                max_oov_len      : C
-                kw               : B, L
+        :params
+            x                : B, L
+            x_len            : B
+            extend_vocab_x   : B, L
+            max_oov_len      : C
+            kw               : B, L
 
-            :returns
-                y                : B, L
-                att              : B, L
+        :returns
+            y                : B, L
+            att              : B, L
     '''
-
     def forward(self, x, x_len, extend_vocab_x, max_oov_len, kw):
         batch_size  = len(x)
         max_x_len   = max(x_len)
@@ -77,13 +49,7 @@ class Seq2Seq(nn.Module):
 
         enc_outputs, (enc_hidden_n, enc_cell_n) = self.encoder(x, x_len)
 
-        enc_hidden_n, enc_cell_n = self.reduce_encoder(enc_hidden_n, enc_cell_n)
-
-        # initial decoder hidden
-        dec_hidden = enc_hidden_n
-
-        # initial decoder cell
-        dec_cell = enc_cell_n
+        dec_hidden, dec_cell = self.reduce_encoder(enc_hidden_n, enc_cell_n)
 
         # initial decoder input
         dec_input = cuda(t.tensor([TK_START['id']] * batch_size))
@@ -100,7 +66,7 @@ class Seq2Seq(nn.Module):
 
         # keyword
         if kw is None:
-            kw = cuda(t.zeros(batch_size, max_x_len))
+            kw = cuda(t.zeros(batch_size, 1))
 
         kw = self.kw_encoder(kw.long())
 
@@ -116,8 +82,11 @@ class Seq2Seq(nn.Module):
         y = None
 
         for i in range(self.max_dec_steps):
+            # embedding decoder input
+            dec_input = self.embedding(dec_input)
+
             # decoding
-            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, _, _ = self.decode(
+            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, _, _ = self.decoder(
                 dec_input,
                 dec_hidden,
                 dec_cell,
@@ -153,74 +122,6 @@ class Seq2Seq(nn.Module):
 
     '''
         :params
-            dec_input               :   B
-            dec_hidden              :   B, DH
-            dec_cell                :   B, DH
-            pre_dec_hiddens         :   B, T, DH
-            enc_hiddens             :   B, L, EH
-            enc_padding_mask        :   B, L
-            enc_temporal_score      :   B, L
-            enc_ctx_vector          :   B, 2EH
-            extend_vocab_x          :   B, L
-            max_oov_len             :   C
-            kw                      :   B, E
-
-        :returns
-            vocab_dist              :   B, V + OOV
-            dec_hidden              :   B, DH
-            dec_cell                :   B, DH
-            enc_ctx_vector          :   B, 2EH
-            enc_attention           :   B, L
-            enc_temporal_score      :   B, L
-            dec_ctx_vector          :   B, DH
-            dec_attention           :   B, L
-    '''
-
-    def decode(self, dec_input,
-               dec_hidden,
-               dec_cell,
-               pre_dec_hiddens,
-               enc_hiddens,
-               enc_padding_mask,
-               enc_temporal_score,
-               enc_ctx_vector,
-               extend_vocab_x,
-               max_oov_len,
-               kw):
-
-        dec_input = self.embedding(dec_input)
-
-        dec_hidden, dec_cell = self.decoder(dec_input, dec_hidden, dec_cell, enc_ctx_vector)
-
-        # intra-temporal encoder attention
-
-        enc_ctx_vector, enc_att, enc_temporal_score = self.enc_att(dec_hidden, enc_hiddens, enc_padding_mask, enc_temporal_score, kw)
-
-        # intra-decoder attention
-
-        dec_ctx_vector, dec_att = self.dec_att(dec_hidden, pre_dec_hiddens)
-
-        # vocab distribution
-
-        combined_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
-
-        vocab_dist = f.softmax(self.vocab_gen(combined_input), dim=1)
-
-        # pointer-generator
-
-        if self.pointer_generator is True:
-            ptr_prob = t.sigmoid(self.ptr_gen(combined_input))
-
-            ptr_dist = ptr_prob * enc_att
-
-            vocab_dist = (1 - ptr_prob) * vocab_dist
-            vocab_dist = t.cat([vocab_dist, cuda(t.zeros(len(dec_input), max_oov_len))], dim=1)
-            vocab_dist.scatter_add(1, extend_vocab_x, ptr_dist)
-
-        return vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, dec_ctx_vector, dec_att
-
-    '''
-        :params
             x       : article
             kw      : keyword
 
@@ -228,7 +129,6 @@ class Seq2Seq(nn.Module):
             y       : summary
             att     : attention
     '''
-
     def evaluate(self, x, kw):
         self.eval()
 
@@ -242,9 +142,7 @@ class Seq2Seq(nn.Module):
 
         max_oov_len = len(oov)
 
-        if kw is None:
-            kw = cuda(t.zeros(1, x_len).long())
-        else:
+        if kw is not None:
             kw = self.vocab.words2ids(kw if isinstance(kw, (list,)) else kw.split())
             kw = cuda(t.tensor(kw).unsqueeze(0))
 

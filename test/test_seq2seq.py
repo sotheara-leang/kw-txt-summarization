@@ -1,13 +1,13 @@
+from random import randint
 from unittest import TestCase
 
 from rouge import Rouge
-from random import randint
 
-from main.seq2seq import Seq2Seq
 from main.common.simple_vocab import *
 from main.common.simple_vocab import SimpleVocab
-from main.data.cnn_dataloader import *
 from main.common.util.file_util import FileUtil
+from main.data.cnn_dataloader import *
+from main.seq2seq import Seq2Seq
 from test.common import *
 
 

@@ -3,6 +3,7 @@ from random import shuffle
 
 from main.common.common import *
 
+
 class DataLoader(object):
 
     EXAMPLE_QUEUE_MAX = 2000
@@ -57,7 +58,7 @@ class DataLoader(object):
                 for example in examples:
                     self.example_queue.put(example)
 
-            example = None if self.example_queue.qsize() == 0 else self.example_queue.get(block=False)
+            example = None if self.example_queue.qsize() == 0 else self.example_queue.get()
         else:
             example = next(self.generator)
 
