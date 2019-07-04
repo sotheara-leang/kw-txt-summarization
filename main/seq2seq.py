@@ -75,6 +75,8 @@ class Seq2Seq(nn.Module):
 
         enc_attention = None
 
+        dec_attention = None
+
         enc_temporal_score = None
 
         pre_dec_hiddens = None
@@ -86,7 +88,7 @@ class Seq2Seq(nn.Module):
             dec_input = self.embedding(dec_input)
 
             # decoding
-            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, _, _ = self.decoder(
+            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, _, dec_att = self.decoder(
                 dec_input,
                 dec_hidden,
                 dec_cell,
@@ -100,6 +102,8 @@ class Seq2Seq(nn.Module):
                 kw)
 
             enc_attention = enc_att.unsqueeze(1).detach() if enc_attention is None else t.cat([enc_attention, enc_att.unsqueeze(1).detach()], dim=1)
+
+            dec_attention = dec_att.unsqueeze(1).detach() if dec_attention is None else t.cat([dec_attention, dec_att.unsqueeze(1).detach()], dim=1)
 
             ## output
 
@@ -118,7 +122,7 @@ class Seq2Seq(nn.Module):
 
             dec_input = dec_output
 
-        return y, enc_attention
+        return y, enc_attention, dec_attention
 
     '''
         :params
@@ -126,8 +130,9 @@ class Seq2Seq(nn.Module):
             kw      : keyword
 
         :returns
-            y       : summary
-            att     : attention
+            y           : summary
+            enc_att     : encoder attention
+            dec_attn    : decoder attention
     '''
     def evaluate(self, x, kw):
         self.eval()
@@ -146,6 +151,6 @@ class Seq2Seq(nn.Module):
             kw = self.vocab.words2ids(kw if isinstance(kw, (list,)) else kw.split())
             kw = cuda(t.tensor(kw).unsqueeze(0))
 
-        y, att = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)
+        y, enc_att, dec_attn = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)
 
-        return ' '.join(self.vocab.ids2words(y[0].tolist(), oov)), att[0]
+        return ' '.join(self.vocab.ids2words(y[0].tolist(), oov)), enc_att[0], dec_attn[0]

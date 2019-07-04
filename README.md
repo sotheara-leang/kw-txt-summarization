@@ -46,6 +46,7 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
 |max-dec-steps|Maximum length of summary|
 |vocab-size|Size of vocabulary|
 |vocab-file|Vocabulary file|
+|intra-dec-attn|To enable intra-decoder attention|
 |pointer-generator|To enable Pointer-Generator|
 |share-dec-weight|To enable sharing decoder weights with word embedding|
 |device|Device to be used (e.g. cpu, cuda:0)|

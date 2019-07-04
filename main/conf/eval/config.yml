@@ -1,4 +1,4 @@
-emb-size: 50
+emb-size: 100
 emb-file:
 
 enc-hidden-size: 100

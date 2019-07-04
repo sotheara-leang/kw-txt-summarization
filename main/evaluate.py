@@ -66,7 +66,7 @@ class Evaluate(object):
 
             # prediction
 
-            output, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
+            output, _, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
 
             t.cuda.empty_cache()
 
