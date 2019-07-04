@@ -49,13 +49,9 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
 |pointer-generator|To enable Pointer-Generator|
 |share-dec-weight|To enable sharing decoder weights with word embedding|
 |device|Device to be used (e.g. cpu, cuda:0)|
-
-#### Logging
-| Parameter | Description |
-|-----|-----|
-|enable|To enable logging|
-|conf-file|Logging config file. Default logging.yml at the same directory of config.yml|
-
+|logging||
+|&nbsp;&nbsp;&nbsp;&nbsp;enable|To enable logging|
+|&nbsp;&nbsp;&nbsp;&nbsp;conf-file|Path of logging config file. Default logging.yml at the same directory of config.yml|
 
 #### Train
 | Parameter | Description |
