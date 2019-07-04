@@ -52,8 +52,7 @@ class DataLoader(object):
 
                     examples.append(example)
 
-                if self.mode == 'train':
-                    shuffle(examples)
+                shuffle(examples)
 
                 for example in examples:
                     self.example_queue.put(example)

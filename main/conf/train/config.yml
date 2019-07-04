@@ -10,6 +10,7 @@ max-dec-steps: 100
 vocab-size: 50000
 vocab-file: data/extract/vocab.txt
 
+intra-dec-attn: true
 pointer-generator: true
 share-dec-weight: true
 

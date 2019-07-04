@@ -1,15 +1,16 @@
 emb-size: 50
 emb-file:
 
-enc-hidden-size: 50
-dec-hidden-size: 100
+enc-hidden-size: 100
+dec-hidden-size: 200
 
-max-enc-steps: 100
-max-dec-steps: 50
+max-enc-steps: 800
+max-dec-steps: 100
 
 vocab-size: 50000
 vocab-file: data/extract/vocab.txt
 
+intra-dec-attn: true
 pointer-generator: true
 share-dec-weight: true
 

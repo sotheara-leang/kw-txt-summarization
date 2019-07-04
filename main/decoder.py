@@ -14,6 +14,7 @@ class Decoder(nn.Module):
         self.dec_hidden_size    = conf('dec-hidden-size')
         self.vocab_size         = conf('vocab-size')
 
+        self.intra_dec_attn     = conf('intra-dec-attn')
         self.share_dec_weight   = conf('share-dec-weight')
         self.pointer_generator  = conf('pointer-generator')
 
@@ -22,9 +23,13 @@ class Decoder(nn.Module):
         self.lstm = nn.LSTMCell(self.emb_size, self.dec_hidden_size)
 
         self.enc_att = EncoderAttention()
-        self.dec_att = DecoderAttention()
 
-        combined_hidden_size = self.dec_hidden_size + 2 * self.enc_hidden_size + self.dec_hidden_size
+        if self.intra_dec_attn is True:
+            self.dec_att = DecoderAttention()
+
+            combined_hidden_size = self.dec_hidden_size + 2 * self.enc_hidden_size + self.dec_hidden_size
+        else:
+            combined_hidden_size = self.dec_hidden_size + 2 * self.enc_hidden_size
 
         if self.pointer_generator is True:
             self.ptr_gen = nn.Linear(combined_hidden_size, 1)
@@ -91,11 +96,17 @@ class Decoder(nn.Module):
 
         # intra-decoder attention
 
-        dec_ctx_vector, dec_att = self.dec_att(dec_hidden, pre_dec_hiddens)
+        if self.intra_dec_attn is True:
+            dec_ctx_vector, dec_att = self.dec_att(dec_hidden, pre_dec_hiddens)
+        else:
+            dec_ctx_vector = None
+            dec_att = None
 
         # vocab distribution
-
-        combined_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
+        if self.intra_dec_attn is True:
+            combined_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
+        else:
+            combined_input = t.cat([dec_hidden, enc_ctx_vector], dim=1)
 
         vocab_dist = f.softmax(self.vocab_gen(combined_input), dim=1)
 
@@ -111,4 +122,3 @@ class Decoder(nn.Module):
             vocab_dist.scatter_add(1, extend_vocab_x, ptr_dist)
 
         return vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, dec_ctx_vector, dec_att
-
