@@ -34,3 +34,57 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
 * All configurations for training and evaluating can be found in `main/conf` folder:
     * `main/conf/eval` for evaluation
     * `main/conf/train` for training
+ 
+#### Common
+| Parameter | Description |
+|-----|-----|
+|emb-size|Size of word embedding|
+|emb-file|Glove word embedding. If not set, the embedding will be learned during training|
+|enc-hidden-size|Size of encoder hidden state|
+|dec-hidden-size|Size of decoder hidden state|
+|max-enc-steps|Maximum length of article|
+|max-dec-steps|Maximum length of summary|
+|vocab-size|Size of vocabulary|
+|vocab-file|Vocabulary file|
+|pointer-generator|To enable Pointer-Generator|
+|share-dec-weight|To enable sharing decoder weights with word embedding|
+|device|Device to be used (e.g. cpu, cuda:0)|
+
+#### Logging
+| Parameter | Description |
+|-----|-----|
+|enable|To enable logging|
+|conf-file|Logging config file. Default logging.yml at the same directory of config.yml|
+
+
+#### Train
+| Parameter | Description |
+|-----|-----|
+|epoch|Number of epoch|
+|batch-size|Size of batch|
+|log-batch|To enable logging each batch|
+|log-batch-interval|Number of every batch to be logged|
+|clip-gradient-max-norm|Maximum value of gradient|
+|lr|Learning rate|
+|lr-decay|Ratio to reduce learning rate|
+|lr-decay-epoch|To update learning rate based on the `lr-decay`|
+|ml||
+|&nbsp;&nbsp;&nbsp;&nbsp;enable|To enable ML training|
+|&nbsp;&nbsp;&nbsp;&nbsp;forcing-ratio|Ratio of teacher forcing|
+|&nbsp;&nbsp;&nbsp;&nbsp;forcing-decay|Ratio to reduce `forcing-ratio`|
+|rl||
+|&nbsp;&nbsp;&nbsp;&nbsp;enable|To enable RL training|
+|&nbsp;&nbsp;&nbsp;&nbsp;transit-epoch|To define which epoch to start RL training|
+|&nbsp;&nbsp;&nbsp;&nbsp;transit-decay|Ratio to decrease the flag to enable RL training|
+|&nbsp;&nbsp;&nbsp;&nbsp;weight|Weight of RL|
+|eval|To evaluate the training set after finishing training|
+|tb||
+|&nbsp;&nbsp;&nbsp;&nbsp;enable|To enable TensorBoard logging|
+|&nbsp;&nbsp;&nbsp;&nbsp;log-batch|To log every batch|
+|&nbsp;&nbsp;&nbsp;&nbsp;log-dir|Directory to write logging file|
+|article-file|Article file|
+|keyword-file|Keyword file|
+|summary-file|Summary file|
+|load-model-file|Path to load pre-trained model|
+|save-model-file|Path to save model (including file name)|
+|save-model-per-epoch|Number of every epoch to save the model|
