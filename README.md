@@ -26,7 +26,7 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
     * `data/cnn_generate_vocab.py` to generate vocabulary from generated dataset
     * `data/cnn_process_data.py` to extract a set of examples from given dataset
 
-### Glove
+### Word Embedding
 * Download Glove word embedding from [here](https://nlp.stanford.edu/projects/glove/)
 * Use `data/glove_process_data.py` to generate the embedding file to be used for model
 
@@ -75,6 +75,7 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
 |&nbsp;&nbsp;&nbsp;&nbsp;transit-decay|Ratio to decrease the flag to enable RL training|
 |&nbsp;&nbsp;&nbsp;&nbsp;weight|Weight of RL|
 |eval|To evaluate the training set after finishing training|
+|tune-emb|To tune word embedding|
 |tb||
 |&nbsp;&nbsp;&nbsp;&nbsp;enable|To enable TensorBoard logging|
 |&nbsp;&nbsp;&nbsp;&nbsp;log-batch|To log every batch|
@@ -85,3 +86,14 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
 |load-model-file|Path to load pre-trained model|
 |save-model-file|Path to save model (including file name)|
 |save-model-per-epoch|Number of every epoch to save the model|
+
+#### Evaluation
+| Parameter | Description |
+|-----|-----|
+|batch-size|Size of batch|
+|log-batch|To enable logging each batch|
+|log-batch-interval|Number of every batch to be logged|
+|article-file|Article file|
+|keyword-file|Keyword file|
+|summary-file|Summary file|
+|load-model-file|Path to load pre-trained model|

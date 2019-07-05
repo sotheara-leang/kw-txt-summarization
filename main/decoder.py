@@ -103,6 +103,7 @@ class Decoder(nn.Module):
             dec_att = None
 
         # vocab distribution
+
         if self.intra_dec_attn is True:
             combined_input = t.cat([dec_hidden, enc_ctx_vector, dec_ctx_vector], dim=1)
         else:

@@ -42,6 +42,7 @@ train:
     weight: 0.9984
 
   eval: true
+  tune-emb: false
 
   tb:
     enable: true

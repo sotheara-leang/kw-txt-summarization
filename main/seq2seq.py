@@ -17,6 +17,8 @@ class Seq2Seq(nn.Module):
 
         self.max_dec_steps      = conf('max-dec-steps')
 
+        self.intra_dec_attn     = conf('intra-dec-attn')
+
         self.vocab = vocab
 
         self.embedding = embedding
@@ -75,7 +77,7 @@ class Seq2Seq(nn.Module):
 
         enc_attention = None
 
-        dec_attention = None
+        dec_attention = []
 
         enc_temporal_score = None
 
@@ -88,7 +90,7 @@ class Seq2Seq(nn.Module):
             dec_input = self.embedding(dec_input)
 
             # decoding
-            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_att, enc_temporal_score, _, dec_att = self.decoder(
+            vocab_dist, dec_hidden, dec_cell, enc_ctx_vector, enc_attn, enc_temporal_score, _, dec_attn = self.decoder(
                 dec_input,
                 dec_hidden,
                 dec_cell,
@@ -101,9 +103,10 @@ class Seq2Seq(nn.Module):
                 max_oov_len,
                 kw)
 
-            enc_attention = enc_att.unsqueeze(1).detach() if enc_attention is None else t.cat([enc_attention, enc_att.unsqueeze(1).detach()], dim=1)
+            enc_attention = enc_attn.unsqueeze(1).detach() if enc_attention is None else t.cat([enc_attention, enc_attn.unsqueeze(1).detach()], dim=1)
 
-            dec_attention = dec_att.unsqueeze(1).detach() if dec_attention is None else t.cat([dec_attention, dec_att.unsqueeze(1).detach()], dim=1)
+            if self.intra_dec_attn is True:
+                dec_attention.append(dec_attn.detach())
 
             ## output
 
@@ -121,6 +124,18 @@ class Seq2Seq(nn.Module):
             pre_dec_hiddens = dec_hidden.unsqueeze(1) if pre_dec_hiddens is None else t.cat([pre_dec_hiddens, dec_hidden.unsqueeze(1)], dim=1)
 
             dec_input = dec_output
+
+        # compute intra-decoder attention
+        if self.intra_dec_attn is True:
+            dec_attention_ = dec_attention
+
+            max_dec_att_len = max([e.size(1) for e in dec_attention_])
+
+            dec_attention = t.zeros(len(dec_attention_), max_dec_att_len)
+            for i in range(len(dec_attention_)):
+                dec_attention[i, :dec_attention_[i].size(1)] = dec_attention_[i]
+        else:
+            dec_attention = None
 
         return y, enc_attention, dec_attention
 
@@ -153,4 +168,4 @@ class Seq2Seq(nn.Module):
 
         y, enc_att, dec_attn = self.forward(x, x_len, extend_vocab_x, max_oov_len, kw)
 
-        return ' '.join(self.vocab.ids2words(y[0].tolist(), oov)), enc_att[0], dec_attn[0]
+        return ' '.join(self.vocab.ids2words(y[0].tolist(), oov)), enc_att[0], dec_attn[0] if dec_attn is not None else None
