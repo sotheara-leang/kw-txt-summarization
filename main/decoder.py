@@ -31,12 +31,14 @@ class Decoder(nn.Module):
         else:
             combined_hidden_size = self.dec_hidden_size + 2 * self.enc_hidden_size
 
+        self.output = nn.Linear(combined_hidden_size, self.dec_hidden_size)
+
         if self.pointer_generator is True:
             self.ptr_gen = nn.Linear(combined_hidden_size, 1)
 
         # sharing decoder weight
         if self.share_dec_weight is True:
-            proj_layer = nn.Linear(combined_hidden_size, self.emb_size)
+            proj_layer = nn.Linear(self.dec_hidden_size, self.emb_size)
 
             output_layer = nn.Linear(self.emb_size, self.vocab_size)
             output_layer.weight.data = self.embedding.weight.data  # sharing weight with embedding
@@ -46,7 +48,7 @@ class Decoder(nn.Module):
                 output_layer
             )
         else:
-            self.vocab_gen = nn.Linear(combined_hidden_size, self.vocab_size)
+            self.vocab_gen = nn.Linear(self.dec_hidden_size, self.vocab_size)
 
     '''
         :params
@@ -109,7 +111,9 @@ class Decoder(nn.Module):
         else:
             combined_input = t.cat([dec_hidden, enc_ctx_vector], dim=1)
 
-        vocab_dist = f.softmax(self.vocab_gen(combined_input), dim=1)
+        output = self.output(combined_input)
+
+        vocab_dist = f.softmax(self.vocab_gen(output), dim=1)
 
         # pointer-generator
 
