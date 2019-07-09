@@ -43,7 +43,7 @@ class EncoderAttention(nn.Module):
 
         if enc_temporal_score is None:
             score = exp_score
-            enc_temporal_score = exp_score
+            enc_temporal_score = t.clamp(exp_score, min=1e-10)
         else:
             score = exp_score / enc_temporal_score
             enc_temporal_score = enc_temporal_score + exp_score
@@ -52,7 +52,10 @@ class EncoderAttention(nn.Module):
 
         score = score * enc_padding_mask.float()
 
-        attention = score / t.sum(score, dim=1).unsqueeze(1)  # B, L
+        factor = t.sum(score, dim=1)
+        factor = t.clamp(factor, min=1e-10)
+
+        attention = score / factor.unsqueeze(1)  # B, L
 
         # context vector
 
