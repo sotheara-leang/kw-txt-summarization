@@ -27,21 +27,21 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
             * `input_dir` - CNN/Daily Mail dataset folder
         * Generate data: `python cnn_generate_data.py --opt generate --input_dir --output_dir [--validation_test_fraction]`
             * `input_dir` - CNN/Daily Mail dataset folder
-            * `output_dir` - folder to write the generated files
+            * `output_dir` - output folder to write the generated files
             * `validation_test_fraction` - fraction of validation and test set. Default: 0.10
     * `data/cnn_generate_vocab.py` to generate vocabulary from generated dataset
         * `python cnn_generate_vocab --files article.txt summary.txt [--fname] [--max_vocab] [--dir_out]`
-            * `fname` - Vocabulary file name. Default: vocab.txt
-            * `max_vocab` - Maximum vocabulary words. Default: -1
-            * `dir_out` - Output directory. Default: data/extract
+            * `fname` - vocabulary file name. Default: vocab.txt
+            * `max_vocab` - maximum vocabulary words. Default: -1
+            * `dir_out` - output directory. Default: data/extract
     * `data/cnn_process_data.py` to extract a set of examples from given dataset
 
 ### Word Embedding
 * Download Glove word embedding from [here](https://nlp.stanford.edu/projects/glove/)
 * Use `data/glove_process_data.py` to generate the embedding file to be used for model
     * `python glove_process_data.python --file glove.6B.100d.txt [--dir_out] [--fname]`
-        * `dir_out` - Output directory. Default: data/extract 
-        * `fname` - Output file name. Default: embedding.bin
+        * `dir_out` - output directory. Default: data/extract 
+        * `fname` - output file name. Default: embedding.bin
 
 ### Configuration
 * All configurations for training and evaluating can be found in `main/conf` folder. File `conf.yml` is for parameter configuration and `logging.yml` is for logging configuration.
