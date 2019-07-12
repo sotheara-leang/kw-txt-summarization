@@ -48,6 +48,8 @@ class Train(object):
 
         self.tb_log_batch           = conf('train:tb:log-batch')
 
+        self.tune_emb               = conf('train:tune-emb', False)
+
         # tensorboard
         self.tb_writer = None
         if conf('train:tb:enable') is True:
@@ -57,7 +59,7 @@ class Train(object):
 
         self.vocab = SimpleVocab(FileUtil.get_file_path(conf('vocab-file')), conf('vocab-size'))
 
-        embedding = GloveEmbedding(FileUtil.get_file_path(conf('emb-file')), self.vocab) if conf('emb-file') is not None else None
+        embedding = GloveEmbedding(FileUtil.get_file_path(conf('emb-file')), self.vocab, not self.tune_emb) if conf('emb-file') is not None else None
 
         self.seq2seq = cuda(Seq2Seq(self.vocab, embedding))
 
@@ -448,7 +450,7 @@ class Train(object):
 
             # prediction
 
-            output, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
+            output, _, _ = self.seq2seq(batch.articles, batch.articles_len, batch.extend_vocab_articles, max_ovv_len, batch.keywords)
 
             t.cuda.empty_cache()
 
