@@ -32,7 +32,9 @@ class AppContext(object):
         if self.conf.get('logging:enable') is True:
             log_file = self.conf.get('logging:conf-file')
             if log_file is None:
-                log_file = os.path.dirname(conf_file) + '/logging.yml'
+                conf_dir, conf_fname = os.path.split(conf_file)
+
+                log_file = conf_dir + '/' + conf_fname.replace('config', 'logging')
 
             Logger(log_file)
         else:
