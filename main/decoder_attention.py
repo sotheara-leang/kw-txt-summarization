@@ -24,7 +24,7 @@ class DecoderAttention(nn.Module):
     def forward(self, dec_hidden, pre_dec_hiddens):
         if pre_dec_hiddens is None:
             ctx_vector = cuda(t.zeros(dec_hidden.size()))
-            attention = cuda(t.zeros(len(dec_hidden), 1))
+            attention = None
         else:
             score = t.bmm(self.w_attn(pre_dec_hiddens), dec_hidden.unsqueeze(2)).squeeze(2)  # (B, T, DH) *  (B, DH, 1) => (B, T)
 

@@ -8,6 +8,7 @@ from main.common.simple_vocab import SimpleVocab
 from main.common.util.file_util import FileUtil
 from main.data.cnn_dataloader import *
 from main.seq2seq import Seq2Seq
+from main.common.glove.embedding import GloveEmbedding
 from test.common import *
 
 
@@ -35,7 +36,10 @@ class TestSeq2Seq(TestCase):
 
         vocab = SimpleVocab(FileUtil.get_file_path(conf('vocab-file')), conf('vocab-size'))
 
-        seq2seq = cuda(Seq2Seq(vocab))
+        embedding = GloveEmbedding(FileUtil.get_file_path(conf('emb-file')),
+                                   self.vocab, not conf('train:tune-emb', False)) if conf('emb-file') is not None else None
+
+        seq2seq = cuda(Seq2Seq(vocab, embedding))
 
         checkpoint = t.load(FileUtil.get_file_path(conf('train:load-model-file')))
 
@@ -47,10 +51,7 @@ class TestSeq2Seq(TestCase):
 
         article, keyword, reference = samples[randint(0, len(samples) - 1)]
 
-        keyword = keyword[0]
-        reference = reference[0]
-
-        summary, attention = seq2seq.evaluate(article, keyword)
+        summary, _, _ = seq2seq.evaluate(article, keyword)
 
         score = self.get_score(summary, reference)
 

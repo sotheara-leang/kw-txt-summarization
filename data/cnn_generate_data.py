@@ -18,7 +18,6 @@ import tqdm
 nlp = spacy.load("en")
 
 SEP_SUMMARY = '#S#'
-SEP_SUMMARY_QUERY = '#Q#'
 SEP_ENTITY = '#E#'
 
 dm_single_close_quote = u'\u2019'  # unicode
@@ -199,6 +198,10 @@ def extract_story_entities(options):
 
         question_sub_dirs = os.listdir(question_dir_path)
         for question_sub_dir in question_sub_dirs:
+
+            if '.' in question_sub_dir:
+                continue
+
             question_sub_dir_path = path(question_dir_path, question_sub_dir)
 
             print('\nextract entities in %s' % question_sub_dir_path)
