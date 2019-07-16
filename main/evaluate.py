@@ -70,21 +70,10 @@ class Evaluate(object):
 
             t.cuda.empty_cache()
 
-            gen_summaries = []
-            for idx, summary in enumerate(output.tolist()):
-                try:
-                    stop_idx = summary.index(TK_STOP['id'])
-                    summary = summary[:stop_idx]
-                except ValueError:
-                    pass
-
-                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
-
-                gen_summaries.append(summary)
-
-            reference_summaries = batch.original_summaries
-
             # calculate rouge score
+
+            gen_summaries = self.get_summaries(output.tolist(), batch.oovs)
+            reference_summaries = batch.original_summaries
 
             avg_score = rouge.get_scores(gen_summaries, reference_summaries, avg=True)
             avg_score_1 = avg_score["rouge-1"]["f"]
@@ -142,6 +131,24 @@ class Evaluate(object):
             self.seq2seq.load_state_dict(checkpoint['model_state_dict'])
         else:
             raise Exception('>>> cannot load model - file not exist: %s', model_file)
+
+    def get_summaries(self, summaries, oovs):
+        summaries_str = []
+        for idx, summaries in enumerate(summaries):
+            try:
+                stop_idx = summaries.index(TK_STOP['id'])
+                summaries = summaries[:stop_idx]
+            except ValueError:
+                pass
+
+            if len(summaries) == 0:
+                summaries = 'xxx'  # fake string to prevent error during compute rouge score
+            else:
+                summaries = ' '.join(self.vocab.ids2words(summaries, oovs[idx]))
+
+            summaries_str.append(summaries)
+
+        return summaries_str
 
     def run(self):
         try:

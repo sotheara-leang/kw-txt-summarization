@@ -115,41 +115,17 @@ class Train(object):
                 baseline_output = self.train_rl(enc_outputs, dec_hidden, dec_cell, kw, batch, False)
 
             # convert decoded output to string
-
-            sampling_summaries = []
-            sampling_outputs = sampling_output[0].tolist()
-            for idx, summary in enumerate(sampling_outputs):
-                try:
-                    stop_idx = summary.index(TK_STOP['id'])
-                    summary = summary[:stop_idx]
-                except ValueError:
-                    pass
-
-                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
-
-                sampling_summaries.append(summary)
-
-            baseline_summaries = []
-            baseline_outputs = baseline_output[0].tolist()
-            for idx, summary in enumerate(baseline_outputs):
-                try:
-                    stop_idx = summary.index(TK_STOP['id'])
-                    summary = summary[:stop_idx]
-                except ValueError:
-                    pass
-
-                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
-
-                baseline_summaries.append(summary)
-
+            sampling_summaries = self.get_summaries(sampling_output[0].tolist(), batch.oovs)
+            baseline_summaries = self.get_summaries(baseline_output[0].tolist(), batch.oovs)
             reference_summaries = batch.original_summaries
 
             # calculate rouge score
+            rouge = Rouge()
 
-            sampling_scores = self.get_reward(sampling_summaries, reference_summaries)
+            sampling_scores = t.tensor(rouge.get_scores(sampling_summaries, reference_summaries)[0]["rouge-l"]["f"])
             sampling_scores = cuda(sampling_scores)
 
-            baseline_scores = self.get_reward(baseline_summaries, reference_summaries)
+            baseline_scores = t.tensor(rouge.get_scores(baseline_summaries, reference_summaries)[0]["rouge-l"]["f"])
             baseline_scores = cuda(baseline_scores)
 
             # loss
@@ -454,21 +430,10 @@ class Train(object):
 
             t.cuda.empty_cache()
 
-            gen_summaries = []
-            for idx, summary in enumerate(output.tolist()):
-                try:
-                    stop_idx = summary.index(TK_STOP['id'])
-                    summary = summary[:stop_idx]
-                except ValueError:
-                    pass
-
-                summary = ' '.join(self.vocab.ids2words(summary, batch.oovs[idx]))
-
-                gen_summaries.append(summary)
-
-            reference_summaries = batch.original_summaries
-
             # calculate rouge score
+
+            gen_summaries = self.get_summaries(output.tolist(), batch.oovs)
+            reference_summaries = batch.original_summaries
 
             avg_score = rouge.get_scores(gen_summaries, reference_summaries, avg=True)
             avg_score_1 = avg_score["rouge-1"]["f"]
@@ -562,6 +527,24 @@ class Train(object):
             'optimizer_state_dict': self.optimizer.state_dict(),
         }, FileUtil.get_file_path(model_file))
 
+    def get_summaries(self, summaries, oovs):
+        summaries_str = []
+        for idx, summaries in enumerate(summaries):
+            try:
+                stop_idx = summaries.index(TK_STOP['id'])
+                summaries = summaries[:stop_idx]
+            except ValueError:
+                pass
+
+            if len(summaries) == 0:
+                summaries = 'xxx'  # fake string to prevent error during compute rouge score
+            else:
+                summaries = ' '.join(self.vocab.ids2words(summaries, oovs[idx]))
+
+            summaries_str.append(summaries)
+
+        return summaries_str
+
     def run(self):
         try:
             # display configuration
@@ -583,30 +566,6 @@ class Train(object):
         except Exception as e:
             self.logger.error(e, exc_info=True)
             raise e
-
-    def get_reward(self, decoded_sents, original_sents):
-        rouge = Rouge()
-        try:
-            scores = rouge.get_scores(decoded_sents, original_sents)
-        except Exception:
-            self.logger.error("Rouge failed for multi sentence evaluation..")
-
-            scores = []
-            for i in range(len(decoded_sents)):
-                try:
-                    score = rouge.get_scores(decoded_sents[i], original_sents[i])
-                except Exception:
-                    self.logger.error("decoded_sents: %s", decoded_sents[i])
-                    self.logger.error("original_sents: %s", original_sents[i])
-
-                    score = [{"rouge-l": {"f": 0.0}}]
-
-                scores.append(score[0])
-
-        rouge_l_f1 = [score["rouge-l"]["f"] for score in scores]
-        rouge_l_f1 = t.Tensor(rouge_l_f1)
-
-        return rouge_l_f1
 
 
 if __name__ == "__main__":

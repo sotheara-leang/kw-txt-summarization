@@ -41,7 +41,8 @@ class Seq2Seq(nn.Module):
 
         :returns
             y                : B, L
-            att              : B, L
+            enc_att          : B, L, S
+            dec_att          : B, L, S
     '''
     def forward(self, x, x_len, extend_vocab_x, max_oov_len, kw):
         batch_size  = len(x)
@@ -105,7 +106,7 @@ class Seq2Seq(nn.Module):
 
             enc_attention = enc_attn.unsqueeze(1).detach() if enc_attention is None else t.cat([enc_attention, enc_attn.unsqueeze(1).detach()], dim=1)
 
-            if self.intra_dec_attn is True:
+            if self.intra_dec_attn is True and i > 0:
                 dec_attention.append(dec_attn.detach())
 
             ## output
@@ -127,13 +128,15 @@ class Seq2Seq(nn.Module):
 
         # compute intra-decoder attention
         if self.intra_dec_attn is True:
-            dec_attention_ = dec_attention
+            max_dec_att_len = max([e.size(1) for e in dec_attention])
 
-            max_dec_att_len = max([e.size(1) for e in dec_attention_])
+            for idx, e in enumerate(dec_attention):
+                step_attn = t.zeros(batch_size, max_dec_att_len)
+                step_attn[:, :e.size(1)] = e
 
-            dec_attention = t.zeros(len(dec_attention_), max_dec_att_len)
-            for i in range(len(dec_attention_)):
-                dec_attention[i, :dec_attention_[i].size(1)] = dec_attention_[i]
+                dec_attention[idx] = step_attn
+
+            dec_attention = t.stack(dec_attention, dim=1)
         else:
             dec_attention = None
 
