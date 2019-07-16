@@ -30,7 +30,7 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
             * `output_dir` - output folder to write the generated files
             * `validation_test_fraction` - fraction of validation and test set. Default: 0.10
     * `data/cnn_generate_vocab.py` to generate vocabulary from generated dataset
-        * `python cnn_generate_vocab --files article.txt summary.txt [--fname] [--max_vocab] [--dir_out]`
+        * `python cnn_generate_vocab.py --files article.txt summary.txt [--fname] [--max_vocab] [--dir_out]`
             * `fname` - vocabulary file name. Default: vocab.txt
             * `max_vocab` - maximum vocabulary words. Default: -1
             * `dir_out` - output directory. Default: data/extract
@@ -39,7 +39,7 @@ Integrate [Keywords attention mechanism](http://tcci.ccf.org.cn/conference/2018/
 ### Word Embedding
 * Download Glove word embedding from [here](https://nlp.stanford.edu/projects/glove/)
 * Use `data/glove_process_data.py` to generate the embedding file to be used for model
-    * `python glove_process_data.python --file glove.6B.100d.txt [--dir_out] [--fname]`
+    * `python glove_process_data.py --file glove.6B.100d.txt [--dir_out] [--fname]`
         * `dir_out` - output directory. Default: data/extract 
         * `fname` - output file name. Default: embedding.bin
 
